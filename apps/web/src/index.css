@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 168 38% 98%;
+    --foreground: 176 34% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 175 40% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 175 40% 15%;
+    --primary: 171 44% 34%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 168 28% 95%;
+    --secondary-foreground: 176 34% 20%;
+    --muted: 172 24% 95%;
+    --muted-foreground: 174 18% 38%;
+    --accent: 44 92% 62%;
+    --accent-foreground: 175 40% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 170 18% 86%;
+    --input: 170 18% 86%;
+    --ring: 171 36% 39%;
+    --radius: 1rem;
+  }
+
+  /* Default dark mode if needed, toned down to Slate/Green-Gray instead of pure pitch black */
+  .dark {
+    --background: 175 35% 10%; /* cemac-950 */
+    --foreground: 180 20% 95%;
+    --card: 175 35% 12%; 
+    --card-foreground: 180 20% 95%;
+    --popover: 175 35% 12%;
+    --popover-foreground: 180 20% 95%;
+    --primary: 171 36% 39%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 175 35% 15%;
+    --secondary-foreground: 180 20% 95%;
+    --muted: 175 30% 18%;
+    --muted-foreground: 180 15% 70%;
+    --accent: 43 74% 66%;
+    --accent-foreground: 175 40% 10%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 175 30% 20%;
+    --input: 175 30% 20%;
+    --ring: 171 36% 39%;
+  }
+}
+
+@layer base {
+  * { 
+    @apply border-border; 
+    box-sizing: border-box; 
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+    background-image:
+      radial-gradient(circle at top left, rgba(31, 167, 139, 0.08), transparent 28%),
+      radial-gradient(circle at top right, rgba(248, 194, 51, 0.1), transparent 24%),
+      linear-gradient(180deg, rgba(245, 251, 249, 1) 0%, rgba(250, 252, 251, 1) 100%);
+    background-attachment: fixed;
+  }
+  ::selection {
+    background: rgba(31, 167, 139, 0.2);
+    color: inherit;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+  /* Optional generic serif class for specific institutional headings */
+  .font-institutional {
+    font-family: 'Playfair Display', serif;
+  }
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: #bedcd6; border-radius: 9999px; }
+.dark ::-webkit-scrollbar-thumb { background-color: #26544f; }
+
+/* Accessibility: prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Accessibility: global focus-visible ring */
+:focus-visible {
+  outline: 3px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+@layer components {
+  .app-shell-bg {
+    background-image:
+      radial-gradient(circle at 0% 0%, rgba(19, 122, 104, 0.14), transparent 22%),
+      radial-gradient(circle at 100% 0%, rgba(250, 204, 21, 0.12), transparent 18%),
+      linear-gradient(180deg, #f7fbfa 0%, #eef7f5 44%, #f8faf9 100%);
+  }
+
+  .app-panel {
+    @apply rounded-[28px] border border-white/70 shadow-[0_18px_60px_rgba(9,46,39,0.08)] backdrop-blur-xl;
+    background-color: rgba(255, 255, 255, 0.88);
+  }
+
+  .metric-card {
+    @apply rounded-3xl border border-white/75 shadow-[0_12px_35px_rgba(9,46,39,0.08)] backdrop-blur-xl;
+    background-color: rgba(255, 255, 255, 0.9);
+  }
+
+  .hero-chip {
+    @apply inline-flex items-center gap-2 rounded-full border border-cemac-200/80 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-cemac-800 shadow-sm backdrop-blur;
+  }
+}

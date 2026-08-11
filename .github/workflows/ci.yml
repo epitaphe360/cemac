@@ -1,0 +1,42 @@
+﻿
+name: CEMAC-INTEGRA CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  code_quality_and_tests:
+    name: Code Quality & Unit Tests
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20.x"
+        cache: "npm"
+
+    - name: Install Dependencies
+      run: npm install
+      
+    - name: TypeScript Strict Mode Check
+      run: npm run type-check
+      
+    - name: Run Unit Tests
+      run: npm run test
+
+    - name: Build Production Web App
+      run: npm run build
+      env:
+        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL_MOCK }}
+        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY_MOCK }}
+
