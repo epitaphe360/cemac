@@ -6,31 +6,47 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth.store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import type { Certification } from '@/types'
+import toast from 'react-hot-toast'
+
+type AuditTask = Certification & { entreprise: { raison_sociale: string; pays: string } | null }
 
 export function AuditorDashboard() {
   const { t } = useTranslation()
   const profile = useAuthStore((s) => s.profile)
   
   const [stats, setStats] = useState({ assigned: 0, completed: 0 })
-  const [tasks, setTasks] = useState<any[]>([])
+  const [tasks, setTasks] = useState<AuditTask[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
-      // Rechercher les dossiers techniques assignés à l'auditeur actuel
-      // Note: On utilise 'under_review' et le fait qu'il y ait eu un agent_id (ou on prend tout ce qui l'est pour l'instant)
-      const { data: certs } = await supabase
+      if (!profile?.id) {
+        setLoading(false)
+        return
+      }
+      const [activeRes, completedRes] = await Promise.all([
+        supabase
         .from('certifications')
         .select(`*, entreprise:entreprises!certifications_entreprise_id_fkey(raison_sociale, pays)`)
+        .eq('agent_id', profile.id)
         .eq('statut', 'under_review')
-        .order('updated_at', { ascending: false })
+        .order('updated_at', { ascending: false }),
+        supabase
+          .from('certifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('agent_id', profile.id)
+          .in('statut', ['commission_review', 'approved', 'rejected']),
+      ])
       
-      if (certs) {
+      if (activeRes.error || completedRes.error) {
+        toast.error('Impossible de charger les missions d’audit')
+      } else {
         setStats({
-          assigned: certs.length,
-          completed: 0 // Mock, idéalement on compte dans l'historique d'audit
+          assigned: activeRes.data?.length ?? 0,
+          completed: completedRes.count ?? 0,
         })
-        setTasks(certs)
+        setTasks((activeRes.data ?? []) as AuditTask[])
       }
       setLoading(false)
     }

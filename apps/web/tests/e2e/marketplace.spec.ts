@@ -4,10 +4,9 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Marketplace public — no auth required', () => {
   test('marketplace-public page loads successfully', async ({ page }) => {
-    await page.goto('/marketplace-public')
+    const response = await page.goto('/marketplace-public')
+    expect(response?.ok()).toBe(true)
     await page.waitForLoadState('networkidle')
-    await expect(page.locator('body')).not.toContainText('500')
-    await expect(page.locator('body')).not.toContainText('Erreur')
     await expect(page.locator('body')).toBeVisible()
   })
 

@@ -1,6 +1,6 @@
 import { PageLoader } from "@/components/shared/LoadingSpinner";
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Search, Filter, CheckCircle, Globe } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -12,10 +12,13 @@ import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
 import { CEMAC_COUNTRIES } from '@/lib/constants'
 import type { ProduitWithEntreprise } from '@/types'
+import toast from 'react-hot-toast'
 
 export function MarketplacePage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const location = useLocation()
+  const detailBase = location.pathname.startsWith('/marketplace-public') ? '/marketplace-public' : '/marketplace'
   const [products, setProducts] = useState<ProduitWithEntreprise[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -36,7 +39,9 @@ export function MarketplacePage() {
         .eq('is_published', true)
         .order('created_at', { ascending: false })
 
-      if (!error && data) {
+      if (error) {
+        toast.error(t('errors.load_failed', 'Impossible de charger la marketplace'))
+      } else if (data) {
         // Only show products whose enterprise is visible and verified
         const visible = (data as unknown as ProduitWithEntreprise[]).filter(
           (p) => p.entreprise && (p.entreprise as { is_verified: boolean }).is_verified
@@ -46,7 +51,7 @@ export function MarketplacePage() {
       setLoading(false)
     }
     fetch()
-  }, [])
+  }, [t])
 
   const categories = [...new Set(products.map((p) => p.categorie).filter(Boolean))]
 
@@ -105,6 +110,7 @@ export function MarketplacePage() {
         <div className="relative">
           <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <select
+            aria-label={t('marketplace.private.all_countries')}
             className="h-10 rounded-xl border border-input bg-white/85 pl-9 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-cemac-600"
             value={filterCountry}
             onChange={(e) => setFilterCountry(e.target.value)}
@@ -117,6 +123,7 @@ export function MarketplacePage() {
         </div>
         {categories.length > 0 && (
           <select
+            aria-label={t('marketplace.private.all_categories')}
             className="h-10 rounded-xl border border-input bg-white/85 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-cemac-600"
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
@@ -145,7 +152,7 @@ export function MarketplacePage() {
             const country = CEMAC_COUNTRIES.find((c) => c.code === product.pays_origine)
 
             return (
-              <Card key={product.id} className="group cursor-pointer overflow-hidden border-white/80 hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(10,45,39,0.12)]" onClick={() => navigate(`/marketplace/${product.id}`)}>
+              <Card key={product.id} className="group cursor-pointer overflow-hidden border-white/80 hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(10,45,39,0.12)]" onClick={() => navigate(`${detailBase}/${product.id}`)}>
                 {/* Image produit */}
                 <div className="relative h-52 overflow-hidden bg-gradient-to-br from-cemac-50 to-cemac-100">
                   {product.images?.[0] ? (

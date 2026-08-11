@@ -6,7 +6,7 @@
  * Run with:
  *   k6 run k6/smoke-test.js \
  *     -e BASE_URL=https://cemac-integra.vercel.app \
- *     -e SUPABASE_URL=https://dotzvdrbondrybjkqqzd.supabase.co \
+ *     -e SUPABASE_URL=https://jqplpnjppyyxlmessjaw.supabase.co \
  *     -e SUPABASE_ANON_KEY=<key>
  */
 import http from 'k6/http'
@@ -21,9 +21,13 @@ export const options = {
   },
 }
 
-const BASE_URL     = __ENV.BASE_URL      || 'http://localhost:5173'
-const SUPABASE_URL = __ENV.SUPABASE_URL  || 'https://dotzvdrbondrybjkqqzd.supabase.co'
-const ANON_KEY     = __ENV.SUPABASE_ANON_KEY || ''
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:5173'
+const SUPABASE_URL = __ENV.SUPABASE_URL
+const ANON_KEY = __ENV.SUPABASE_ANON_KEY
+
+if (!SUPABASE_URL || !ANON_KEY) {
+  throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY must be provided with -e')
+}
 
 const supabaseHeaders = {
   'Content-Type':  'application/json',

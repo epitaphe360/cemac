@@ -1,6 +1,6 @@
 import { LoadingSpinner, PageLoader, LoadingTableFull, LoadingCard } from "@/components/shared/LoadingSpinner";
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle, Globe, Package, Mail, Phone,
   ExternalLink, Tag, ShoppingCart, Building2, Award
@@ -14,11 +14,15 @@ import { useTranslation } from 'react-i18next'
 import { formatCurrency } from '@/lib/utils'
 import { CEMAC_COUNTRIES } from '@/lib/constants'
 import type { ProduitWithEntreprise } from '@/types'
+import toast from 'react-hot-toast'
 
 export function MarketplaceProductDetailPage() {
   const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const isPublic = location.pathname.startsWith('/marketplace-public')
+  const marketplacePath = isPublic ? '/marketplace-public' : '/marketplace'
   const [product, setProduct] = useState<ProduitWithEntreprise | null>(null)
   const [loading, setLoading] = useState(true)
   const [showContact, setShowContact] = useState(false)
@@ -38,13 +42,19 @@ export function MarketplaceProductDetailPage() {
           )
         `)
         .eq('id', id)
+        .eq('is_published', true)
         .single()
 
-      if (!error && data) setProduct(data as unknown as ProduitWithEntreprise)
+      if (error) {
+        if (error.code !== 'PGRST116') toast.error(t('errors.load_failed', 'Impossible de charger ce produit'))
+      } else if (data) {
+        const candidate = data as unknown as ProduitWithEntreprise
+        if (candidate.entreprise?.is_verified) setProduct(candidate)
+      }
       setLoading(false)
     }
     fetch()
-  }, [id])
+  }, [id, t])
 
   if (loading) return <PageLoader />
   if (!product) {
@@ -52,7 +62,7 @@ export function MarketplaceProductDetailPage() {
       <div className="text-center py-20 text-muted-foreground">
         <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
         <p className="font-medium">{t('marketplace.detail.not_found')}</p>
-        <Link to="/marketplace" className="text-cemac-700 underline text-sm mt-2 block">
+        <Link to={marketplacePath} className="text-cemac-700 underline text-sm mt-2 block">
           {t('marketplace.detail.back_to_marketplace')}
         </Link>
       </div>
@@ -89,7 +99,7 @@ export function MarketplaceProductDetailPage() {
         <Button variant="ghost" size="icon" className="h-9 w-9 bg-white/10 text-white hover:bg-white/15 hover:text-white" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <Link to="/marketplace" className="hover:text-white">Marketplace</Link>
+        <Link to={marketplacePath} className="hover:text-white">Marketplace</Link>
         <span>/</span>
         <span className="font-medium truncate text-white">{product.nom}</span>
         </div>

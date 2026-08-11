@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Receipt, Download, TrendingUp, Clock, CheckCircle, FileText, Sparkles } from 'lucide-react'
+import { Receipt, Download, TrendingUp, Clock, CheckCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth.store'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -131,69 +131,23 @@ async function downloadInvoicePdf(inv: Invoice, userName: string) {
   doc.save(`${inv.invoice_number}.pdf`)
 }
 
-async function downloadDemoInvoicePdf(userName: string, country: string = 'CM') {
-  const taxInfo = CEMAC_TAX_RATES[country] ?? { rate: 19.25, label: 'TVA' }
-  const amountHt = 150_000
-  const taxAmount = Math.round(amountHt * taxInfo.rate / 100)
-  const amountTtc = amountHt + taxAmount
-  const demoInv: Invoice = {
-    id: 'demo',
-    invoice_number: 'INV-DEMO-2026',
-    user_id: 'demo',
-    company_id: null,
-    plan_name: 'professional',
-    amount_ht: amountHt,
-    tax_rate: taxInfo.rate,
-    tax_amount: taxAmount,
-    amount_ttc: amountTtc,
-    currency: 'XAF',
-    country,
-    payment_method: 'bank_transfer',
-    payment_ref: 'REF-DEMO-001',
-    status: 'paid',
-    billing_period: 'monthly',
-    issued_at: new Date().toISOString(),
-    due_at: new Date(Date.now() + 30 * 86400_000).toISOString(),
-    paid_at: new Date().toISOString(),
-    notes: 'Facture de démonstration — CEMAC INTEGRA',
-    pdf_url: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }
-  await downloadInvoicePdf(demoInv, userName)
-}
-
 export function BillingPage() {
   const { t } = useTranslation()
   const profile = useAuthStore((s) => s.profile)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
-  const [generatingDemo, setGeneratingDemo] = useState(false)
-
-  const handleDemoDownload = async () => {
-    setGeneratingDemo(true)
-    try {
-      const country = (profile as { country?: string })?.country ?? 'CM'
-      await downloadDemoInvoicePdf(profile?.full_name ?? profile?.email ?? 'Client Démo', country)
-      toast.success('Facture démo générée avec succès !')
-    } catch (err) {
-      console.error(err)
-      toast.error('Erreur lors de la génération')
-    }
-    setGeneratingDemo(false)
-  }
 
   useEffect(() => {
     if (!profile?.id) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(supabase as any)
+    supabase
       .from('invoices')
       .select('*')
       .eq('user_id', profile.id)
       .order('issued_at', { ascending: false })
-      .then(({ data }: { data: Invoice[] | null }) => {
-        if (data) setInvoices(data)
+      .then(({ data, error }) => {
+        if (error) toast.error('Impossible de charger les factures')
+        else setInvoices(data ?? [])
         setLoading(false)
       })
   }, [profile?.id])
@@ -224,12 +178,6 @@ export function BillingPage() {
             <p className="text-sm text-muted-foreground mt-0.5">{t('billing.description')}</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="gap-2 border-dashed border-cemac-300 text-cemac-700 hover:bg-cemac-50" onClick={handleDemoDownload} disabled={generatingDemo}>
-          {generatingDemo
-            ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-cemac-300 border-t-cemac-700" />
-            : <Sparkles className="h-3.5 w-3.5" />}
-          Facture démo (PDF)
-        </Button>
       </div>
 
       {/* Stats */}
@@ -263,23 +211,8 @@ export function BillingPage() {
           <CardContent className="py-16 text-center">
             <Receipt className="h-10 w-10 text-gray-300 mx-auto mb-4" />
             <p className="font-semibold text-gray-700">{t('billing.no_invoices')}</p>
-            <p className="text-sm text-muted-foreground mt-1">{t('billing.no_invoices_hint')}</p>            <div className="mt-6 flex flex-col items-center gap-3">
-              <div className="rounded-2xl border border-dashed border-cemac-200 bg-cemac-50/50 px-6 py-4 max-w-sm">
-                <div className="flex items-center gap-2 mb-2 text-cemac-700">
-                  <FileText className="h-4 w-4" />
-                  <span className="text-sm font-semibold">Aperçu d'une facture</span>
-                </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Téléchargez un exemple PDF pour voir le format des factures CEMAC INTEGRA.
-                </p>
-                <Button size="sm" className="w-full gap-2" onClick={handleDemoDownload} disabled={generatingDemo}>
-                  {generatingDemo
-                    ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                    : <Download className="h-3.5 w-3.5" />}
-                  Générer la facture démo
-                </Button>
-              </div>
-            </div>          </CardContent>
+            <p className="text-sm text-muted-foreground mt-1">{t('billing.no_invoices_hint')}</p>
+          </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">

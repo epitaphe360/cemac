@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { formatDate } from '@/lib/utils'
 import type { Certification } from '@/types'
+import toast from 'react-hot-toast'
 
 interface Stats {
   totalCertifications: number
@@ -47,6 +48,9 @@ export function CompanyDashboard() {
           .eq('entreprise_id', entreprise.id),
       ])
 
+      if (certsStatsRes.error || certsRecentRes.error || productsRes.error) {
+        toast.error('Impossible de charger toutes les données du tableau de bord')
+      }
       if (certsRecentRes.data) setRecentCerts(certsRecentRes.data)
       if (certsStatsRes.data) {
         const allCerts = certsStatsRes.data
@@ -223,8 +227,10 @@ export function CompanyDashboard() {
                 <p className="text-xs text-cemac-200 mb-4">
                   {t('dashboard.company.upgrade_description')}
                 </p>
-                <Button variant="gold" size="sm" className="w-full">
+                <Button variant="gold" size="sm" className="w-full" asChild>
+                  <Link to="/settings?tab=plan">
                   {t('dashboard.company.upgrade_cta')}
+                  </Link>
                 </Button>
               </CardContent>
             </Card>

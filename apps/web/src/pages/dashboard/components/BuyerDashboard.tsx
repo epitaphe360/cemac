@@ -1,30 +1,33 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ShoppingCart, Star, PackageSearch, TrendingUp, ArrowRight } from 'lucide-react'
+import { ShoppingCart, PackageSearch, TrendingUp, ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import type { Produit } from '@/types'
+import toast from 'react-hot-toast'
+
+type BuyerProduct = Produit & { entreprise: { raison_sociale: string } | null }
 
 export function BuyerDashboard() {
   const { t } = useTranslation()
-  const [stats, setStats] = useState({ availableProducts: 0, favorites: 0 })
-  const [recentProducts, setRecentProducts] = useState<any[]>([])
+  const [availableProducts, setAvailableProducts] = useState(0)
+  const [recentProducts, setRecentProducts] = useState<BuyerProduct[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: productsData } = await supabase
+      const { data: productsData, error } = await supabase
         .from('produits')
         .select('*, entreprise:entreprises(raison_sociale)')
+        .eq('is_published', true)
         .order('created_at', { ascending: false })
       
-      if (productsData) {
-        setStats({
-          availableProducts: productsData.length,
-          favorites: 0 // placeholder
-        })
-        setRecentProducts(productsData.slice(0, 4))
+      if (error) toast.error('Impossible de charger les produits disponibles')
+      else {
+        setAvailableProducts(productsData?.length ?? 0)
+        setRecentProducts((productsData ?? []).slice(0, 4) as BuyerProduct[])
       }
       setLoading(false)
     }
@@ -53,22 +56,13 @@ export function BuyerDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <Card className="metric-card">
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="p-3 rounded-xl bg-blue-50"><ShoppingCart className="h-5 w-5 text-blue-600" /></div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{loading ? '…' : stats.availableProducts}</p>
+              <p className="text-2xl font-bold text-gray-900">{loading ? '…' : availableProducts}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{t('dashboard.buyer.available_products')}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="metric-card">
-          <CardContent className="flex items-center gap-4 pt-6">
-            <div className="p-3 rounded-xl bg-pink-50"><Star className="h-5 w-5 text-pink-600" /></div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{loading ? '…' : stats.favorites}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{t('dashboard.buyer.favorite_suppliers')}</p>
             </div>
           </CardContent>
         </Card>

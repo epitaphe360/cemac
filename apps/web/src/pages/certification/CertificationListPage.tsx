@@ -76,7 +76,7 @@ export function CertificationListPage() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [entreprise?.id, role])
+  }, [entreprise, isCompanyAdmin, role])
 
   const filtered = certifications.filter((c) => {
     const matchSearch = c.produit_nom.toLowerCase().includes(search.toLowerCase())

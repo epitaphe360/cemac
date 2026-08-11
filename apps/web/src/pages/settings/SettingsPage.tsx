@@ -7,7 +7,6 @@ import toast from 'react-hot-toast'
 import {
   User, Lock, Building2, Bell, CreditCard,
   Save, Eye, EyeOff, CheckCircle2, Shield, ExternalLink, AlertCircle,
-  Smartphone, Banknote, Copy, Phone,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth.store'
@@ -110,6 +109,8 @@ export function SettingsPage() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       if (params.get('checkout') === 'success') return 'plan'
+      const requestedTab = params.get('tab')
+      if (TABS.some((tab) => tab.id === requestedTab)) return requestedTab as Tab
     }
     return 'profile'
   })
@@ -195,7 +196,6 @@ function ProfileTab() {
     if (!profile) return
     const { data: updated, error } = await supabase
       .from('profiles')
-      // @ts-ignore — supabase type inference edge case
       .update({ full_name: data.full_name, phone: data.phone ?? null })
       .eq('id', profile.id)
       .select()
@@ -420,7 +420,6 @@ function CompanyTab() {
   const onSubmit = async (data: EntrepriseForm) => {
     const { data: updated, error } = await supabase
       .from('entreprises')
-      // @ts-ignore — supabase type inference edge case
       .update({
         raison_sociale:   data.raison_sociale,
         secteur_activite: data.secteur_activite || null,
@@ -627,70 +626,12 @@ function NotificationsTab() {
 }
 
 // ─── Plan Tab ───────────────────────────────────────────────────────────────────────────────
-const PAYMENT_METHODS = [
-  {
-    id: 'mtn_momo',
-    name: 'MTN Mobile Money',
-    emoji: '📱',
-    icon: Smartphone,
-    color: 'text-yellow-700',
-    bg: 'bg-yellow-50',
-    border: 'border-yellow-200',
-    steps: [
-      'Composez *126# sur votre téléphone MTN',
-      'Sélectionnez « Transfert d’argent »',
-      'Numéro marchand : 650 000 000 (exemple)',
-      'Montant selon le plan choisi',
-      'Référence : votre adresse email du compte',
-    ],
-  },
-  {
-    id: 'orange_money',
-    name: 'Orange Money',
-    emoji: '🟠',
-    icon: Phone,
-    color: 'text-orange-700',
-    bg: 'bg-orange-50',
-    border: 'border-orange-200',
-    steps: [
-      'Composez #150*50# sur votre téléphone Orange',
-      'Sélectionnez « Paiement marchand »',
-      'Code marchand : OM-CEMAC-001 (exemple)',
-      'Montant selon le plan choisi',
-      'Référence : votre adresse email du compte',
-    ],
-  },
-  {
-    id: 'bank_transfer',
-    name: 'Virement Bancaire',
-    emoji: '🏦',
-    icon: Banknote,
-    color: 'text-blue-700',
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
-    steps: [
-      'Effectuez un virement vers le compte CEMAC INTEGRA',
-      'Indiquez votre adresse email en référence',
-      'Envoyez le justificatif par email à facturation@cemac-integra.com',
-      'Votre plan sera activé sous 24h ouvrées',
-    ],
-  },
-]
-
 function PlanTab() {
   const { t } = useTranslation()
   const entreprise = useAuthStore((s) => s.entreprise)
   const currentPlan = (entreprise?.subscription_plan ?? 'free') as keyof typeof PLAN_LABELS
   const planInfo = PLAN_LABELS[currentPlan] ?? PLAN_LABELS.free
   const featureKeys = PLAN_FEATURES[currentPlan] ?? PLAN_FEATURES.free
-  const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
-
-  const copyEmail = () => {
-    navigator.clipboard.writeText('facturation@cemac-integra.com')
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   return (
     <div className="space-y-4">
@@ -756,61 +697,21 @@ function PlanTab() {
             ))}
           </div>
 
-          {/* Payment methods */}
-          <Card>
+          {/* Payment availability */}
+          <Card className="border-amber-200 bg-amber-50/40">
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-cemac-600" />
-                Moyens de paiement acceptés
+                Souscription aux plans payants
               </CardTitle>
               <CardDescription className="text-xs">
-                Choisissez votre méthode, suivez les instructions, puis envoyez votre justificatif. Votre plan sera activé manuellement sous 24h.
+                Le paiement en libre-service n’est pas encore activé. Aucun numéro ni code marchand n’est publié dans l’application.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {PAYMENT_METHODS.map((method) => {
-                const MethodIcon = method.icon
-                const isSelected = selectedMethod === method.id
-                return (
-                  <div key={method.id} className={cn('rounded-lg border transition-all', method.bg, method.border)}>
-                    <button
-                      className="w-full flex items-center justify-between px-4 py-3 text-left"
-                      onClick={() => setSelectedMethod(isSelected ? null : method.id)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{method.emoji}</span>
-                        <div>
-                          <p className={cn('text-sm font-semibold', method.color)}>{method.name}</p>
-                        </div>
-                      </div>
-                      <MethodIcon className={cn('h-4 w-4 shrink-0', method.color)} />
-                    </button>
-                    {isSelected && (
-                      <div className="px-4 pb-4 space-y-2">
-                        <ol className="space-y-1.5">
-                          {method.steps.map((step, i) => (
-                            <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
-                              <span className={cn('shrink-0 font-bold text-xs w-4 h-4 rounded-full flex items-center justify-center mt-0.5 text-white', method.id === 'mtn_momo' ? 'bg-yellow-500' : method.id === 'orange_money' ? 'bg-orange-500' : 'bg-blue-500')}>
-                                {i + 1}
-                              </span>
-                              {step}
-                            </li>
-                          ))}
-                        </ol>
-                        {method.id === 'bank_transfer' && (
-                          <button
-                            onClick={copyEmail}
-                            className="flex items-center gap-1 text-xs text-blue-700 hover:underline mt-2"
-                          >
-                            <Copy className="h-3 w-3" />
-                            {copied ? 'Copié !' : 'Copier l’email de facturation'}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+            <CardContent>
+              <a href="/contact?reason=abonnement" className="text-sm font-medium text-cemac-700 hover:underline">
+                Contacter l’équipe commerciale →
+              </a>
             </CardContent>
           </Card>
 
@@ -822,7 +723,7 @@ function PlanTab() {
                 <div className="text-sm">
                   <p className="font-semibold text-cemac-800 mb-1">Besoin d’aide pour souscrire ?</p>
                   <p className="text-xs text-gray-600 leading-relaxed">
-                    Contactez notre équipe commerciale après votre paiement pour activer votre plan rapidement.
+                    Contactez notre équipe commerciale pour obtenir les modalités de souscription disponibles.
                   </p>
                   <a
                     href="/contact"

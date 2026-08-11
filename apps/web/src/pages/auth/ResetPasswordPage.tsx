@@ -1,4 +1,4 @@
-import { LoadingSpinner, PageLoader, LoadingTableFull, LoadingCard } from "@/components/shared/LoadingSpinner";
+import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Lock, Eye, EyeOff, CheckCircle, ShieldAlert } from 'lucide-react'
@@ -16,20 +16,34 @@ export function ResetPasswordPage() {
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
   const [ready, setReady] = useState(false)
+  const [invalid, setInvalid] = useState(false)
   const [done, setDone] = useState(false)
 
   useEffect(() => {
     // Check if there's already a session (token processed from URL hash)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setReady(true)
+    const timeout = window.setTimeout(() => setInvalid(true), 5000)
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (session) {
+        window.clearTimeout(timeout)
+        setReady(true)
+      } else if (error) {
+        window.clearTimeout(timeout)
+        setInvalid(true)
+      }
     })
 
     // Also listen for PASSWORD_RECOVERY event
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') setReady(true)
+      if (event === 'PASSWORD_RECOVERY') {
+        window.clearTimeout(timeout)
+        setReady(true)
+      }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      window.clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,10 +68,24 @@ export function ResetPasswordPage() {
 
     setDone(true)
     toast.success('Mot de passe mis à jour avec succès !')
-    setTimeout(() => navigate('/dashboard'), 2500)
+    await supabase.auth.signOut()
+    setTimeout(() => navigate('/auth/login', { replace: true }), 2500)
   }
 
   // Token invalide / expiré
+  if (invalid) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cemac-50 to-white p-4">
+        <div className="text-center max-w-sm">
+          <ShieldAlert className="h-10 w-10 text-amber-600 mx-auto mb-4" />
+          <h2 className="text-lg font-bold">Lien invalide ou expiré</h2>
+          <p className="text-sm text-muted-foreground mt-2">Demandez un nouveau lien de réinitialisation.</p>
+          <Link to="/auth/forgot-password" className="mt-4 inline-block text-cemac-700 hover:underline">Renvoyer un lien</Link>
+        </div>
+      </div>
+    )
+  }
+
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cemac-50 to-white p-4">
@@ -77,7 +105,7 @@ export function ResetPasswordPage() {
             <CheckCircle className="h-8 w-8 text-green-600" />
           </div>
           <h2 className="text-xl font-bold text-gray-900">Mot de passe mis à jour</h2>
-          <p className="text-sm text-muted-foreground mt-2">Redirection vers votre tableau de bord…</p>
+          <p className="text-sm text-muted-foreground mt-2">Redirection vers la connexion…</p>
         </div>
       </div>
     )
@@ -124,6 +152,7 @@ export function ResetPasswordPage() {
                 <button
                   type="button"
                   onClick={() => setShowPwd((v) => !v)}
+                  aria-label={showPwd ? 'Masquer' : 'Afficher'}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-gray-700"
                 >
                   {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

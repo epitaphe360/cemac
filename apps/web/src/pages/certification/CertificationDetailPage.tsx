@@ -51,6 +51,9 @@ export function CertificationDetailPage() {
         supabase.from('workflow_events').select('*').eq('certification_id', id!).order('created_at'),
         supabase.from('documents').select('*').eq('certification_id', id!).order('created_at'),
       ])
+      if (certRes.error || eventsRes.error || docsRes.error) {
+        toast.error('Impossible de charger toutes les données du dossier')
+      }
       if (certRes.data) {
         setCert(certRes.data)
         // Generate QR code image if approved and qr_code_data exists
@@ -127,13 +130,16 @@ export function CertificationDetailPage() {
     if (error) { toast.error('Erreur lors de la soumission'); return }
 
     // Log workflow event
-    await supabase.from('workflow_events').insert({
+    const { error: eventError } = await supabase.from('workflow_events').insert({
       certification_id: cert.id,
       statut_precedent: cert.statut,
       statut_nouveau: 'submitted',
       commentaire: 'Dossier soumis par l\'entreprise',
       created_by: profile.id,
     })
+    if (eventError) {
+      toast.error('Dossier soumis, mais l’historique n’a pas pu être enregistré')
+    }
 
     toast.success('Dossier soumis avec succès !')
     setCert((prev) => prev ? { ...prev, statut: 'submitted' } : prev)
@@ -188,12 +194,24 @@ export function CertificationDetailPage() {
     if (!cert || !profile) return
     setActionLoading(true)
 
-    const extraFields: { qr_code_data?: string; date_approbation?: string; notes_agent?: string; notes_commission?: string } = {}
+    const extraFields: {
+      qr_code_data?: string
+      date_approbation?: string
+      date_expiration?: string
+      agent_id?: string
+      notes_agent?: string
+      notes_commission?: string
+    } = {}
     if (noteField === 'notes_agent') extraFields.notes_agent = actionNotes.trim()
     else if (noteField === 'notes_commission') extraFields.notes_commission = actionNotes.trim()
     if (newStatus === 'approved') {
+      const approvedAt = new Date()
+      const expiresAt = new Date(approvedAt)
+      expiresAt.setUTCMonth(expiresAt.getUTCMonth() + 24)
       extraFields.qr_code_data = `${window.location.origin}/verify/${cert.id}`
-      extraFields.date_approbation = new Date().toISOString()
+      extraFields.date_approbation = approvedAt.toISOString()
+      extraFields.date_expiration = expiresAt.toISOString()
+      extraFields.agent_id = profile.id
     }
 
     const { error } = await supabase
@@ -203,13 +221,16 @@ export function CertificationDetailPage() {
 
     if (error) { toast.error('Erreur lors de la mise à jour'); setActionLoading(false); return }
 
-    await supabase.from('workflow_events').insert({
+    const { error: workflowError } = await supabase.from('workflow_events').insert({
       certification_id: cert.id,
       statut_precedent: cert.statut,
       statut_nouveau: newStatus,
       commentaire: actionNotes.trim() || null,
       created_by: profile.id,
     })
+    if (workflowError) {
+      toast.error('Statut mis à jour, mais l’historique n’a pas pu être enregistré')
+    }
 
     setCert((prev) => prev ? { ...prev, statut: newStatus, ...extraFields } : prev)
     setEvents((prev) => [

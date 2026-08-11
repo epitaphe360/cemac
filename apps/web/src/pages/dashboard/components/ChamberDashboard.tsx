@@ -14,7 +14,9 @@ export function ChamberDashboard() {
   const profile = useAuthStore((s) => s.profile)
   
   const [stats, setStats] = useState({ fieldValidation: 0, newSubmissions: 0, companies: 0 })
-  const [nationalCerts, setNationalCerts] = useState<any[]>([])
+  const [nationalCerts, setNationalCerts] = useState<
+    (Certification & { entreprise: { raison_sociale: string; pays: string } })[]
+  >([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

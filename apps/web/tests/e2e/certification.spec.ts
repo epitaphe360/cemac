@@ -43,9 +43,9 @@ test.describe('Certification Workflow — unauthenticated guards', () => {
 
 test.describe('Public pages — no auth required', () => {
   test('marketplace-public loads without 500 errors', async ({ page }) => {
-    await page.goto('/marketplace-public')
+    const response = await page.goto('/marketplace-public')
+    expect(response?.ok()).toBe(true)
     await page.waitForLoadState('networkidle')
-    await expect(page.locator('body')).not.toContainText('500')
     await expect(page.locator('body')).not.toContainText('Internal Server Error')
   })
 
@@ -57,21 +57,21 @@ test.describe('Public pages — no auth required', () => {
   })
 
   test('/a-propos loads without errors', async ({ page }) => {
-    await page.goto('/a-propos')
+    const response = await page.goto('/a-propos')
+    expect(response?.ok()).toBe(true)
     await page.waitForLoadState('networkidle')
-    await expect(page.locator('body')).not.toContainText('500')
   })
 
   test('/contact loads without errors', async ({ page }) => {
-    await page.goto('/contact')
+    const response = await page.goto('/contact')
+    expect(response?.ok()).toBe(true)
     await page.waitForLoadState('networkidle')
-    await expect(page.locator('body')).not.toContainText('500')
   })
 
   test('/tarifs loads without errors', async ({ page }) => {
-    await page.goto('/tarifs')
+    const response = await page.goto('/tarifs')
+    expect(response?.ok()).toBe(true)
     await page.waitForLoadState('networkidle')
-    await expect(page.locator('body')).not.toContainText('500')
   })
 })
 
@@ -82,7 +82,7 @@ test.describe('Login → Certification flow', () => {
     await page.goto('/auth/login')
     await page.getByRole('textbox', { name: /email/i }).fill('baduser@test.com')
     await page.locator('input[type="password"]').first().fill('badpassword')
-    await page.getByRole('button', { name: /connexion/i }).click()
+    await page.getByRole('button', { name: /connexion|se connecter/i }).click()
     await expect(page).not.toHaveURL('/dashboard')
   })
 

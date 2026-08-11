@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CEMAC_COUNTRIES } from '@/lib/constants'
+import { PUBLIC_PRICING_PLANS } from '@/lib/pricing'
 
 const schema = z.object({
   email:           z.string().email('Email invalide'),
@@ -29,6 +30,9 @@ type FormData = z.infer<typeof schema>
 export function RegisterPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const requestedPlan = searchParams.get('plan')
+  const selectedPlan = PUBLIC_PRICING_PLANS.find((plan) => plan.id === requestedPlan && plan.id !== 'free')
   const initialize = useAuthStore((s) => s.initialize)
   const [showPassword, setShowPassword] = useState(false)
   const [step, setStep] = useState<1 | 2>(1)
@@ -50,6 +54,7 @@ export function RegisterPage() {
         data: {
           full_name: data.full_name,
           role: 'company_admin',
+          requested_plan: selectedPlan?.id,
         },
       },
     })
@@ -96,6 +101,11 @@ export function RegisterPage() {
           </div>
           <h1 className="text-3xl font-black tracking-tight text-gray-900">CEMAC INTEGRA</h1>
           <p className="text-sm text-gray-500 mt-2">{t('auth.create_company_account')}</p>
+          {selectedPlan && (
+            <p className="text-xs font-medium text-cemac-700 mt-2">
+              Offre demandée : {selectedPlan.name} — activation après validation commerciale
+            </p>
+          )}
         </div>
 
         {/* Step indicators */}
@@ -147,6 +157,7 @@ export function RegisterPage() {
                         {...register('password')}
                       />
                       <button type="button" onClick={() => setShowPassword(!showPassword)}
+                        aria-label={showPassword ? 'Masquer' : 'Afficher'}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>

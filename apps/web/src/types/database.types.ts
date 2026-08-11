@@ -20,6 +20,7 @@ export interface Database {
           country: string | null
           language: string
           notification_preferences: Json | null
+          password_reset_required: boolean
           created_at: string
           updated_at: string
         }
@@ -33,6 +34,7 @@ export interface Database {
           country?: string | null
           language?: string
           notification_preferences?: Json | null
+          password_reset_required?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -44,6 +46,7 @@ export interface Database {
           country?: string | null
           language?: string
           notification_preferences?: Json | null
+          password_reset_required?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -415,6 +418,66 @@ export interface Database {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type: string
+          title: string | null
+          message: string | null
+          body: string | null
+          read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: string
+          title?: string | null
+          message?: string | null
+          body?: string | null
+          read?: boolean
+          created_at?: string
+        }
+        Update: {
+          title?: string | null
+          message?: string | null
+          body?: string | null
+          read?: boolean
+        }
+        Relationships: []
+      }
+      contact_requests: {
+        Row: {
+          id: string
+          full_name: string
+          email: string
+          company: string | null
+          country: string | null
+          reason: string | null
+          message: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          full_name: string
+          email: string
+          company?: string | null
+          country?: string | null
+          reason?: string | null
+          message: string
+          created_at?: string
+        }
+        Update: {
+          full_name?: string
+          email?: string
+          company?: string | null
+          country?: string | null
+          reason?: string | null
+          message?: string
+        }
+        Relationships: []
+      }
       api_configs: {
         Row: {
           id: string
@@ -507,7 +570,33 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      admin_update_user_role: {
+        Args: {
+          target_user_id: string
+          target_role: string
+        }
+        Returns: undefined
+      }
+      auditor_can_access_entreprise: {
+        Args: { entreprise_uuid: string }
+        Returns: boolean
+      }
+      can_access_certification: {
+        Args: { certification_uuid: string }
+        Returns: boolean
+      }
+      get_my_country: {
+        Args: Record<PropertyKey, never>
+        Returns: string | null
+      }
+      get_my_entreprise_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string | null
+      }
+      get_my_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string | null
+      }
     }
     Enums: {
       [_ in never]: never

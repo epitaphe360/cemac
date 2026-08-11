@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { CheckCircle2, X, Zap, ArrowRight, HelpCircle } from 'lucide-react'
 import { useState } from 'react'
-import { PUBLIC_PRICING_PLANS } from '@/lib/pricing'
+import { PUBLIC_PRICING_PLANS, formatPlanPrice } from '@/lib/pricing'
 
 const plans = [
   {
@@ -34,7 +34,7 @@ const faqs = [
   },
   {
     q: 'Comment se passe le paiement ?',
-    a: 'Le paiement des abonnements se fait par Mobile Money (MTN MoMo, Orange Money) ou virement bancaire. La facturation peut être mensuelle ou annuelle selon l\'offre choisie. Une facture officielle vous est envoyée automatiquement par email après confirmation du paiement.',
+    a: 'Le paiement en libre-service n’est pas encore activé. Contactez notre équipe commerciale pour connaître les modalités disponibles et recevoir une facture après validation.',
   },
   {
     q: 'Y a-t-il une période d\'essai pour les plans payants ?',
@@ -54,9 +54,6 @@ export function PricingPage() {
   const [yearly, setYearly] = useState(false)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
 
-  const fmt = (n: number) =>
-    n === 0 ? 'Gratuit' : n.toLocaleString('fr-FR') + ' FCFA'
-
   return (
     <div className="pt-20">
 
@@ -74,7 +71,7 @@ export function PricingPage() {
             </span>
           </h1>
           <p className="relative text-cemac-200 text-lg mb-10">
-            Pas de frais caches. Annulez a tout moment. Paiement en ligne securise par carte bancaire.
+            Tarifs en XAF. La souscription aux plans payants est actuellement traitée avec notre équipe commerciale.
           </p>
 
           {/* Toggle */}
@@ -94,8 +91,8 @@ export function PricingPage() {
               onClick={() => setYearly(true)}
             >
               Annuel
-              <span className="ml-2 px-2 py-0.5 bg-gold-500 text-white text-xs rounded-full">
-                -20 %
+              <span className="ml-2 px-2 py-0.5 bg-gold-800 text-white text-xs rounded-full">
+                Tarif annuel
               </span>
             </button>
           </div>
@@ -116,7 +113,7 @@ export function PricingPage() {
                   className={`relative bg-white/92 backdrop-blur-sm rounded-3xl overflow-hidden border-2 ${plan.color} shadow-[0_18px_45px_rgba(10,45,39,0.1)] flex flex-col transition-transform duration-300 hover:-translate-y-1`}
                 >
                   {plan.badge && (
-                    <div className="absolute top-4 right-4 px-3 py-1 bg-gold-500 text-white text-xs font-bold rounded-full shadow">
+                    <div className="absolute top-4 right-4 px-3 py-1 bg-gold-800 text-white text-xs font-bold rounded-full shadow">
                       {plan.badge}
                     </div>
                   )}
@@ -127,10 +124,10 @@ export function PricingPage() {
                       {plan.name}
                     </h3>
                     <p className={`text-sm mb-4 ${plan.id === 'free' ? 'text-gray-500' : 'text-white/70'}`}>
-                      Pas de frais cachés. Annulez à tout moment. Paiement en ligne sécurisé par carte bancaire.
+                      {plan.description}
                     </p>
                     <div className={plan.id === 'free' ? 'text-gray-900' : 'text-white'}>
-                      <span className="text-4xl font-black">{fmt(price)}</span>
+                      <span className="text-4xl font-black">{formatPlanPrice(price, yearly ? 'yearly' : 'monthly').replace(` / ${yearly ? 'an' : 'mois'}`, '')}</span>
                       {price > 0 && <span className={`text-sm ml-1 ${plan.id === 'free' ? 'text-gray-400' : 'text-white/60'}`}>{period}</span>}
                     </div>
                   </div>
@@ -173,7 +170,7 @@ export function PricingPage() {
             </div>
             <Link
               to="/contact"
-              className="flex-shrink-0 px-8 py-3.5 bg-gold-500 hover:bg-gold-600 text-white font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg"
+              className="flex-shrink-0 px-8 py-3.5 bg-gold-800 hover:bg-gold-900 text-white font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg"
             >
               Nous contacter <ArrowRight size={16} />
             </Link>

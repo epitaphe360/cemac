@@ -85,6 +85,6 @@ test.describe('Logistics page — login redirect', () => {
   test('login page from /market-intelligence redirect has submit button', async ({ page }) => {
     await page.goto('/market-intelligence')
     await page.waitForLoadState('networkidle')
-    await expect(page.getByRole('button', { name: /connexion/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /connexion|se connecter/i })).toBeVisible()
   })
 })

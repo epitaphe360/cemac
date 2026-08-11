@@ -5,24 +5,18 @@ import { getPrimaryLanguage } from '@/lib/i18n-utils'
 import { getInitials, formatDate } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { useState, useEffect, useRef } from 'react'
+import toast from 'react-hot-toast'
+import type { Notification } from '@/types'
 
 interface HeaderProps {
   onMenuClick: () => void
-}
-
-interface Notif {
-  id: string
-  type: string
-  message: string
-  read: boolean
-  created_at: string
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { i18n, t } = useTranslation()
   const profile = useAuthStore((s) => s.profile)
   const currentLanguage = getPrimaryLanguage(i18n.resolvedLanguage ?? i18n.language)
-  const [notifs, setNotifs] = useState<Notif[]>([])
+  const [notifs, setNotifs] = useState<Notification[]>([])
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
 
@@ -33,17 +27,20 @@ export function Header({ onMenuClick }: HeaderProps) {
   // Load notifications for current user
   useEffect(() => {
     if (!profile?.id) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(supabase as any)
+    supabase
       .from('notifications')
       .select('*')
       .eq('user_id', profile.id)
       .order('created_at', { ascending: false })
       .limit(20)
-      .then(({ data }: { data: Notif[] | null }) => {
-        if (data) setNotifs(data)
+      .then(({ data, error }) => {
+        if (error) {
+          toast.error(t('errors.load_failed', 'Impossible de charger les notifications'))
+          return
+        }
+        setNotifs(data ?? [])
       })
-  }, [profile?.id])
+  }, [profile?.id, t])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -60,8 +57,11 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   const markAllRead = async () => {
     if (!profile?.id || unreadCount === 0) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from('notifications').update({ read: true }).eq('user_id', profile.id).eq('read', false)
+    const { error } = await supabase.from('notifications').update({ read: true }).eq('user_id', profile.id).eq('read', false)
+    if (error) {
+      toast.error(t('errors.update_failed', 'Impossible de mettre à jour les notifications'))
+      return
+    }
     setNotifs((prev) => prev.map((n) => ({ ...n, read: true })))
   }
 
@@ -123,7 +123,8 @@ export function Header({ onMenuClick }: HeaderProps) {
                   <div className="py-10 text-center text-sm text-gray-400">{t('header.no_notifications')}</div>
                 ) : notifs.map((n) => (
                   <div key={n.id} className={`px-4 py-3 hover:bg-gray-50 transition-colors ${!n.read ? 'bg-cemac-50/40' : ''}`}>
-                    <p className={`text-xs leading-snug ${!n.read ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>{n.message}</p>
+                    {n.title && <p className="text-xs font-semibold text-gray-900">{n.title}</p>}
+                    <p className={`text-xs leading-snug ${!n.read ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>{n.body ?? n.message ?? n.title}</p>
                     <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(n.created_at)}</p>
                   </div>
                 ))}

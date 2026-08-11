@@ -1,5 +1,9 @@
 node_modules/
 dist/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
 .env
 .env.local
 *.log
@@ -10,6 +14,12 @@ supabase/.temp/
 apps/web/.env
 __pycache__/
 *.pyc
+
+# Local diagnostics and generated database snapshots
+errors.txt
+typescript-errors.txt
+install.err
+cemac_full_schema.sql
 
 # MS Office temp files
 ~$*

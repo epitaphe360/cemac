@@ -1,0 +1,16 @@
+project_id = "cemac-integra"
+
+[db.seed]
+enabled = false
+sql_paths = ["./seed.sql"]
+
+[functions.send-email]
+verify_jwt = true
+
+[functions.create-checkout-session]
+verify_jwt = true
+
+# Stripe cannot attach a Supabase JWT. This endpoint authenticates exclusively
+# with Stripe's signed raw request body.
+[functions.stripe-webhook]
+verify_jwt = false

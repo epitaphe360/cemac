@@ -1,123 +1,168 @@
-/**
- * Supabase Edge Function — create-checkout-session
- *
- * Creates a Stripe Checkout Session and returns the hosted checkout URL.
- * Embeds the authenticated user ID + plan in session metadata so the
- * stripe-webhook function can update entreprises.subscription_plan after payment.
- *
- * Required Supabase secrets (set via `supabase secrets set`):
- *   STRIPE_SECRET_KEY=sk_live_...       (or sk_test_... for testing)
- *
- * Optional:
- *   STRIPE_PRICE_SME=price_...          (Stripe Price ID for the SME / Pro plan)
- *   STRIPE_PRICE_PRO=price_...          (Stripe Price ID for the Pro plan)
- *   STRIPE_PRICE_ENTERPRISE=price_...   (Stripe Price ID for the Enterprise plan)
- *
- * Deploy:
- *   supabase functions deploy create-checkout-session
- */
-
 import Stripe from 'https://esm.sh/stripe@14?target=deno'
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2?target=deno'
-import { corsHeaders } from '../_shared/cors.ts'
+import { corsHeaders, isOriginAllowed } from '../_shared/cors.ts'
 
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
+type PaidPlan = 'sme' | 'enterprise'
+
+const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY') ?? ''
+const paymentsEnabled = Deno.env.get('PAYMENTS_ENABLED') === 'true'
+const stripe = new Stripe(stripeSecretKey, {
   apiVersion: '2024-04-10',
   httpClient: Stripe.createFetchHttpClient(),
 })
 
-function normalizePlan(plan: string): 'sme' | 'enterprise' | null {
-  if (plan === 'sme' || plan === 'pro') return 'sme'
-  if (plan === 'enterprise') return 'enterprise'
-  return null
-}
-
-// Fallback Price IDs (override with env vars)
-const PRICE_MAP: Record<string, string | undefined> = {
-  sme:        Deno.env.get('STRIPE_PRICE_SME') ?? Deno.env.get('STRIPE_PRICE_PRO'),
+const priceMap: Record<PaidPlan, string | undefined> = {
+  sme: Deno.env.get('STRIPE_PRICE_SME') ?? Deno.env.get('STRIPE_PRICE_PRO'),
   enterprise: Deno.env.get('STRIPE_PRICE_ENTERPRISE'),
 }
 
-serve(async (req: Request) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+function json(req: Request, body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
+  })
+}
+
+function normalizePlan(value: unknown): PaidPlan | null {
+  if (value === 'sme' || value === 'pro') return 'sme'
+  if (value === 'enterprise') return 'enterprise'
+  return null
+}
+
+function validatedReturnUrl(value: unknown, req: Request): string | null {
+  if (typeof value !== 'string' || value.length > 2048) return null
+  try {
+    const url = new URL(value)
+    const requestOrigin = req.headers.get('Origin')?.replace(/\/$/, '')
+    if (requestOrigin && url.origin === requestOrigin) return url.toString()
+
+    const allowed = (Deno.env.get('ALLOWED_ORIGINS') ??
+      'https://cemac-integra.vercel.app')
+      .split(',')
+      .map((origin) => origin.trim().replace(/\/$/, ''))
+    return allowed.includes(url.origin) ? url.toString() : null
+  } catch {
+    return null
   }
+}
+
+serve(async (req: Request) => {
+  if (!isOriginAllowed(req)) return json(req, { error: 'Origin not allowed' }, 403)
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(req) })
+  if (req.method !== 'POST') return json(req, { error: 'Method not allowed' }, 405)
+  if (!paymentsEnabled) return json(req, { error: 'Payments are disabled' }, 503)
+  if (!stripeSecretKey) return json(req, { error: 'Payments are not configured' }, 503)
+
+  const contentLength = Number(req.headers.get('content-length') ?? '0')
+  if (contentLength > 16_384) return json(req, { error: 'Payload too large' }, 413)
+
+  const authorization = req.headers.get('Authorization') ?? ''
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    {
+      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    },
+  )
+
+  const token = authorization.replace(/^Bearer\s+/i, '')
+  const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+  if (userError || !user) return json(req, { error: 'Unauthorized' }, 401)
 
   try {
-    // Extract authenticated user from JWT
-    const authHeader = req.headers.get('Authorization') ?? ''
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } },
-    )
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Non authentifié' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      )
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('password_reset_required')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (profileError || !profile) return json(req, { error: 'Profile not found' }, 403)
+    if (profile.password_reset_required) {
+      return json(req, { error: 'Password reset required' }, 403)
     }
 
-    const { plan, priceId, successUrl, cancelUrl } = await req.json() as {
-      plan: 'sme' | 'pro' | 'enterprise'
-      priceId?: string
-      successUrl: string
-      cancelUrl: string
+    const body = await req.json() as {
+      plan?: string
+      entrepriseId?: string
+      successUrl?: string
+      cancelUrl?: string
+    }
+    const plan = normalizePlan(body.plan)
+    if (!plan) return json(req, { error: 'Unsupported plan' }, 400)
+
+    const price = priceMap[plan]
+    if (!price || !/^price_[A-Za-z0-9]+$/.test(price)) {
+      return json(req, { error: 'Plan is not configured' }, 503)
     }
 
-    const normalizedPlan = normalizePlan(plan)
-    if (!normalizedPlan) {
-      return new Response(
-        JSON.stringify({ error: `Plan Stripe non supporté: "${plan}".` }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      )
+    const successUrl = validatedReturnUrl(body.successUrl, req)
+    const cancelUrl = validatedReturnUrl(body.cancelUrl, req)
+    if (!successUrl || !cancelUrl) {
+      return json(req, { error: 'Invalid return URL' }, 400)
     }
 
-    // Resolve the Price ID: client-provided → env → error
-    const resolvedPriceId = priceId ?? PRICE_MAP[normalizedPlan]
-    if (!resolvedPriceId) {
-      return new Response(
-        JSON.stringify({ error: `Aucun Price ID configuré pour le plan "${normalizedPlan}". Définissez STRIPE_PRICE_${normalizedPlan.toUpperCase()} dans les secrets Supabase.` }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      )
-    }
+    let companyQuery = supabase
+      .from('entreprises')
+      .select('id, stripe_customer_id')
+      .eq('owner_id', user.id)
+      .limit(2)
+    if (body.entrepriseId) companyQuery = companyQuery.eq('id', body.entrepriseId)
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      line_items: [{ price: resolvedPriceId, quantity: 1 }],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      payment_method_types: ['card'],
-      // Collect billing address for invoicing
-      billing_address_collection: 'required',
-      // Allow promotion codes set up in Stripe dashboard
-      allow_promotion_codes: true,
-      // Embed user identity + plan so the webhook can update the DB after payment
-      metadata: {
-        supabase_user_id: user.id,
-        plan: normalizedPlan,
-      },
-      subscription_data: {
+    const { data: companies, error: companyError } = await companyQuery
+    if (companyError) throw companyError
+    if (!companies || companies.length === 0) {
+      return json(req, { error: 'Entreprise not found' }, 404)
+    }
+    if (companies.length > 1) {
+      return json(req, { error: 'entrepriseId is required for this account' }, 409)
+    }
+    const company = companies[0]
+
+    const suppliedKey = req.headers.get('Idempotency-Key')
+    if (!suppliedKey) {
+      return json(req, { error: 'Idempotency-Key is required' }, 400)
+    }
+    if (!/^[A-Za-z0-9._:-]{8,128}$/.test(suppliedKey)) {
+      return json(req, { error: 'Invalid idempotency key' }, 400)
+    }
+    const idempotencyKey =
+      `checkout:${user.id}:${company.id}:${plan}:${suppliedKey}`
+
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: 'subscription',
+        line_items: [{ price, quantity: 1 }],
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        client_reference_id: company.id,
+        customer: company.stripe_customer_id || undefined,
+        customer_email: company.stripe_customer_id ? undefined : user.email,
+        billing_address_collection: 'required',
+        allow_promotion_codes: true,
         metadata: {
           supabase_user_id: user.id,
-          plan: normalizedPlan,
+          entreprise_id: company.id,
+          plan,
+        },
+        subscription_data: {
+          metadata: {
+            supabase_user_id: user.id,
+            entreprise_id: company.id,
+            plan,
+          },
         },
       },
-    })
+      { idempotencyKey },
+    )
 
-    return new Response(
-      JSON.stringify({ url: session.url }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    if (!session.url) throw new Error('Stripe did not return a checkout URL')
+    return json(req, { url: session.url })
+  } catch (error) {
+    console.error(
+      '[create-checkout-session]',
+      error instanceof Error ? error.message : 'Unknown error',
     )
-  } catch (err) {
-    console.error('[create-checkout-session] Error:', err)
-    const message = err instanceof Error ? err.message : 'Erreur interne du serveur'
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
+    return json(req, { error: 'Unable to create checkout session' }, 500)
   }
 })

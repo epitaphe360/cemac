@@ -6,7 +6,7 @@
  * Run with:
  *   k6 run k6/load-test.js \
  *     -e BASE_URL=https://cemac-integra.vercel.app \
- *     -e SUPABASE_URL=https://dotzvdrbondrybjkqqzd.supabase.co \
+ *     -e SUPABASE_URL=https://jqplpnjppyyxlmessjaw.supabase.co \
  *     -e SUPABASE_ANON_KEY=<key>
  */
 import http from 'k6/http'
@@ -34,9 +34,13 @@ export const options = {
   },
 }
 
-const BASE_URL      = __ENV.BASE_URL      || 'http://localhost:5173'
-const SUPABASE_URL  = __ENV.SUPABASE_URL  || 'https://dotzvdrbondrybjkqqzd.supabase.co'
-const ANON_KEY      = __ENV.SUPABASE_ANON_KEY || ''
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:5173'
+const SUPABASE_URL = __ENV.SUPABASE_URL
+const ANON_KEY = __ENV.SUPABASE_ANON_KEY
+
+if (!SUPABASE_URL || !ANON_KEY) {
+  throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY must be provided with -e')
+}
 
 const supabaseHeaders = {
   'Content-Type':  'application/json',
@@ -66,7 +70,7 @@ function scenarioFrontendLoad() {
 function scenarioProductListing() {
   const start = Date.now()
   const res = http.get(
-    `${SUPABASE_URL}/rest/v1/produits?select=id,nom,prix,categorie&limit=20`,
+    `${SUPABASE_URL}/rest/v1/produits?select=id,nom,prix_unitaire,categorie&limit=20`,
     { headers: supabaseHeaders },
   )
   pageLoadTime.add(Date.now() - start)
@@ -88,7 +92,7 @@ function scenarioProductSearch() {
   const q = encodeURIComponent(queries[Math.floor(Math.random() * queries.length)])
   const start = Date.now()
   const res = http.get(
-    `${SUPABASE_URL}/rest/v1/produits?select=id,nom,prix&nom=ilike.*${q}*&limit=10`,
+    `${SUPABASE_URL}/rest/v1/produits?select=id,nom,prix_unitaire&nom=ilike.*${q}*&limit=10`,
     { headers: supabaseHeaders },
   )
   pageLoadTime.add(Date.now() - start)
@@ -102,7 +106,7 @@ function scenarioProductSearch() {
   sleep(0.3)
 }
 
-function scenariolCertificationList() {
+function scenarioCertificationList() {
   const start = Date.now()
   const res = http.get(
     `${SUPABASE_URL}/rest/v1/certifications?select=id,statut,created_at&statut=eq.approved&limit=10`,
@@ -143,7 +147,7 @@ export default function main() {
     scenarioFrontendLoad,
     scenarioProductListing,
     scenarioProductSearch,
-    scenariolCertificationList,
+    scenarioCertificationList,
     scenarioEntrepriseListing,
   ]
 

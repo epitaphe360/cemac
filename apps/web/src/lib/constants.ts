@@ -68,7 +68,7 @@ export const SUBSCRIPTION_PLANS = {
 
 export const PLAN_PRICES = {
   free: 0,
-  sme: 49,
-  enterprise: 299,
+  sme: 29000,
+  enterprise: 99000,
   institutional: null, // Sur devis
 }

@@ -13,6 +13,8 @@ export type ChambreCommerce = Database['public']['Tables']['chambres_commerce'][
 export type Corridor = Database['public']['Tables']['corridors']['Row']
 export type LogisticsAlert = Database['public']['Tables']['logistics_alerts']['Row']
 export type Invoice = Database['public']['Tables']['invoices']['Row']
+export type Notification = Database['public']['Tables']['notifications']['Row']
+export type ContactRequest = Database['public']['Tables']['contact_requests']['Row']
 
 // Insert types
 export type InsertEntreprise = Database['public']['Tables']['entreprises']['Insert']

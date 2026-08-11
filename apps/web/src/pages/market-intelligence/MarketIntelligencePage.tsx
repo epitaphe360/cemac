@@ -1,7 +1,7 @@
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { useState, useEffect, useRef } from 'react'
 import {
-  TrendingUp, TrendingDown, Minus, BarChart3,
+  TrendingUp, BarChart3,
   MessageSquare, Send, Bot, User, RefreshCw, Wifi, WifiOff,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -56,7 +56,7 @@ const FAQ: { patterns: RegExp[]; answer: string }[] = [
   },
   {
     patterns: [/cacao|café|coton|bois.*prix|prix.*march/i],
-    answer: `**Prix actuels des matières premières CEMAC**\n\nConsultez l'onglet **Observatoire des Prix** pour visualiser les cours en temps quasi-réel des principales commodités de la zone CEMAC :\n\n• Cacao brut (Cameroun) : ~1 250 000 XAF/tonne ↗\n• Café Robusta : ~890 000 XAF/tonne ↗\n• Bois Okoumé (Gabon) : ~180 000 XAF/m³ ↘\n• Pétrole Brut (Congo) : ~55 000 XAF/baril ↗\n• Coton graine (Tchad) : ~420 000 XAF/tonne ↗\n\nSource : Banque des États de l'Afrique Centrale (BEAC) — mise à jour mensuelle.`,
+    answer: `**Prix indicatifs des matières premières**\n\nConsultez l'onglet **Observatoire des Prix** pour visualiser les dernières références annuelles disponibles de la Banque mondiale, converties en XAF. Ces valeurs ne sont ni des cours en direct, ni des offres commerciales.`,
   },
   {
     patterns: [/label.*cemac|certif.*made.*in|made in cemac/i],
@@ -107,6 +107,7 @@ export function MarketIntelligencePage() {
   const [trendMonths, setTrendMonths] = useState<string[]>([])
   const [trendData, setTrendData] = useState<{ certifications: number[]; marketplace: number[] }>({ certifications: [], marketplace: [] })
   const [trendLoading, setTrendLoading] = useState(true)
+  const [countryCounts, setCountryCounts] = useState<Record<string, number>>({})
   const [categoryFilter, setCategoryFilter] = useState('Tous')
   const [countryFilter, setCountryFilter] = useState('all')
   const [productCount, setProductCount] = useState<number | null>(null)
@@ -127,8 +128,8 @@ export function MarketIntelligencePage() {
     // Fixed EUR/XAF peg = 655.957, use live rate if available
     const rate = usdToXaf ?? 655.957
     const price = Math.round(usdPrice * rate)
-    const prev = Math.round(price * (1 - (((c.id * 7) % 11) - 5) / 100))
-    return { id: c.id, name: c.name, country: c.country, price, prev, unit: c.unitXAF, category: c.category }
+    const source = c.wbIndicator && wbPrices[c.wbIndicator] ? 'Banque mondiale' : 'Référence statique'
+    return { id: c.id, name: c.name, country: c.country, price, unit: c.unitXAF, category: c.category, source }
   })
 
   const fetchMarketData = async () => {
@@ -204,7 +205,7 @@ export function MarketIntelligencePage() {
     nineMonthsAgo.setDate(1)
     nineMonthsAgo.setHours(0, 0, 0, 0)
     Promise.all([
-      supabase.from('certifications').select('created_at').gte('created_at', nineMonthsAgo.toISOString()),
+      supabase.from('certifications').select('created_at, pays_production').gte('created_at', nineMonthsAgo.toISOString()),
       supabase.from('produits').select('created_at').eq('is_published', true).gte('created_at', nineMonthsAgo.toISOString()),
     ]).then(([certsRes, prodsRes]) => {
       const months: string[] = []
@@ -221,6 +222,12 @@ export function MarketIntelligencePage() {
       }
       setTrendMonths(months)
       setTrendData({ certifications: certCounts, marketplace: prodCounts })
+      if (!certsRes.error) {
+        setCountryCounts((certsRes.data ?? []).reduce<Record<string, number>>((counts, cert) => {
+          counts[cert.pays_production] = (counts[cert.pays_production] ?? 0) + 1
+          return counts
+        }, {}))
+      }
       setTrendLoading(false)
     })
   }, [])
@@ -234,11 +241,6 @@ export function MarketIntelligencePage() {
     const matchCountry = countryFilter === 'all' || c.country === countryFilter
     return matchCat && matchCountry
   })
-
-  const trend = (price: number, prev: number) => {
-    const pct = ((price - prev) / prev) * 100
-    return { pct, up: pct > 0, flat: Math.abs(pct) < 0.3 }
-  }
 
   const sendMessage = (text: string) => {
     if (!text.trim()) return
@@ -386,12 +388,11 @@ export function MarketIntelligencePage() {
                       <th className="text-left px-4 py-3 font-medium text-muted-foreground">{t('market_intelligence.prices.col_category')}</th>
                       <th className="text-right px-4 py-3 font-medium text-muted-foreground">{t('market_intelligence.prices.col_price')}</th>
                       <th className="text-right px-4 py-3 font-medium text-muted-foreground">{t('market_intelligence.prices.col_unit')}</th>
-                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">{t('market_intelligence.prices.col_change')}</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Source</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredCommodities.map((c) => {
-                      const { pct, up, flat } = trend(c.price, c.prev)
                       const country = CEMAC_COUNTRIES.find((cc) => cc.code === c.country)
                       return (
                         <tr key={c.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
@@ -406,15 +407,7 @@ export function MarketIntelligencePage() {
                             {formatCurrency(c.price)}
                           </td>
                           <td className="px-4 py-3 text-right text-muted-foreground">/{c.unit}</td>
-                          <td className="px-4 py-3 text-right">
-                            <span className={cn(
-                              'inline-flex items-center gap-1 text-xs font-semibold',
-                              flat ? 'text-gray-500' : up ? 'text-green-600' : 'text-red-600'
-                            )}>
-                              {flat ? <Minus className="h-3 w-3" /> : up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                              {flat ? '—' : `${up ? '+' : ''}${pct.toFixed(1)}%`}
-                            </span>
-                          </td>
+                          <td className="px-4 py-3 text-right text-xs text-muted-foreground">{c.source}</td>
                         </tr>
                       )
                     })}
@@ -434,15 +427,14 @@ export function MarketIntelligencePage() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-            { label: t('market_intelligence.trends.stat1_label'), value: 42,  pct: +20, color: 'text-cemac-700',  bg: 'bg-cemac-50' },
-              { label: t('market_intelligence.trends.stat2_label'), value: 108, pct: +19, color: 'text-blue-600',  bg: 'bg-blue-50' },
-              { label: t('market_intelligence.trends.stat3_label'), value: 29,  pct: +21, color: 'text-green-600', bg: 'bg-green-50' },
-            ].map(({ label, value, pct, color, bg }) => (
+              { label: 'Certifications créées ce mois', value: trendData.certifications.at(-1) ?? 0, color: 'text-cemac-700', bg: 'bg-cemac-50' },
+              { label: 'Produits publiés ce mois', value: trendData.marketplace.at(-1) ?? 0, color: 'text-blue-600', bg: 'bg-blue-50' },
+              { label: 'Produits publiés au total', value: productCount ?? 0, color: 'text-green-600', bg: 'bg-green-50' },
+            ].map(({ label, value, color, bg }) => (
               <Card key={label}>
                 <CardContent className="pt-6">
                   <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold mb-3 ${bg} ${color}`}>
-                    <TrendingUp className="h-3 w-3" />
-                    +{pct}% vs mois précédent
+                    Données Supabase
                   </div>
                   <p className="text-3xl font-bold text-gray-900">{value}</p>
                   <p className="text-xs text-muted-foreground mt-1">{label}</p>
@@ -522,29 +514,26 @@ export function MarketIntelligencePage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Répartition par pays CEMAC</CardTitle>
-              <CardDescription>Part des certifications émises par pays (cumul 2025-2026)</CardDescription>
+              <CardDescription>Certifications créées sur les neuf derniers mois</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {[
-                  { country: '🇨🇲 Cameroun',         pct: 42 },
-                  { country: '🇬🇦 Gabon',            pct: 18 },
-                  { country: '🇨🇬 Congo',            pct: 16 },
-                  { country: '🇹🇩 Tchad',            pct: 12 },
-                  { country: '🇨🇫 Centrafrique',     pct: 8  },
-                  { country: '🇬🇶 Guinée Équatoriale', pct: 4 },
-                ].map(({ country, pct }) => (
-                  <div key={country} className="flex items-center gap-3">
-                    <span className="text-sm w-40 shrink-0">{country}</span>
+                {CEMAC_COUNTRIES.map((country) => {
+                  const count = countryCounts[country.code] ?? 0
+                  const total = Object.values(countryCounts).reduce((sum, value) => sum + value, 0)
+                  const pct = total > 0 ? (count / total) * 100 : 0
+                  return (
+                  <div key={country.code} className="flex items-center gap-3">
+                    <span className="text-sm w-40 shrink-0">{country.flag} {country.name}</span>
                     <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-cemac-400 rounded-full transition-all duration-500"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <span className="text-sm font-semibold w-8 text-right text-cemac-700">{pct}%</span>
+                    <span className="text-sm font-semibold w-8 text-right text-cemac-700">{count}</span>
                   </div>
-                ))}
+                )})}
               </div>
             </CardContent>
           </Card>

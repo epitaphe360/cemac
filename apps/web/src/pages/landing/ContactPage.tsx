@@ -39,25 +39,24 @@ export function ContactPage() {
     }
 
     setLoading(true)
-    // Store the contact request in Supabase (table contact_requests if it exists, otherwise just simulate)
     try {
-      // Try to insert — if table doesn't exist yet, still show success to user
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await supabase.from('contact_requests' as any).insert([{
+      const { error } = await supabase.from('contact_requests').insert({
         full_name: form.name,
         email: form.email,
-        company: form.company,
-        country: form.country,
-        reason: form.reason,
+        company: form.company || null,
+        country: form.country || null,
+        reason: form.reason || null,
         message: form.message,
-      }])
-    } catch (_) {
-      // Table may not exist yet — non-blocking
+      })
+      if (error) throw error
+      setSent(true)
+      toast.success('Message envoyé avec succès !')
+    } catch (error) {
+      console.error('Contact request failed', error)
+      toast.error('Votre message n’a pas pu être envoyé. Veuillez réessayer ou nous écrire par e-mail.')
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
-    setSent(true)
-    toast.success('Message envoyé avec succès !')
   }
 
   return (
@@ -226,6 +225,7 @@ export function ContactPage() {
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">Pays</label>
                       <select
+                        aria-label="Pays"
                         value={form.country}
                         onChange={e => setForm(f => ({ ...f, country: e.target.value }))}
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-cemac-500 focus:ring-2 focus:ring-cemac-500/20 outline-none text-sm transition-all bg-white"

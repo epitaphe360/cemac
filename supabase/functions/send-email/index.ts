@@ -1,287 +1,295 @@
-/**
- * Supabase Edge Function — send-email
- *
- * Envoie des emails transactionnels via l'API Resend.
- * Utilisé pour : notifications de statut certification, bienvenue, etc.
- *
- * Required Supabase secret:
- *   RESEND_API_KEY=re_...
- *
- * Deploy:
- *   supabase functions deploy send-email
- */
-
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2?target=deno'
-import { corsHeaders } from '../_shared/cors.ts'
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2?target=deno'
+import { corsHeaders, isOriginAllowed } from '../_shared/cors.ts'
 
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
-const APP_URL = Deno.env.get('APP_URL') ?? 'https://cemac-integra.vercel.app'
-// Pour la production, remplacez par votre domaine vérifié dans Resend Dashboard
-// Ex: 'CEMAC INTEGRA <noreply@votredomaine.com>'
-const FROM_EMAIL = 'CEMAC INTEGRA <onboarding@resend.dev>'
+type Role =
+  | 'super_admin'
+  | 'cemac_officer'
+  | 'chamber_agent'
+  | 'auditor'
+  | 'company_admin'
+  | 'buyer'
+  | 'logistics_agent'
+  | 'public'
 
-// ── Types ──────────────────────────────────────────────────────────────────
+interface CertificationPayload {
+  type: 'certification_status'
+  certificationId?: string
+  dossierNumber?: string
+  data?: { dossier?: string }
+}
 
-interface EmailPayload {
+interface WelcomePayload {
+  type: 'welcome'
+  userId: string
+}
+
+interface DirectPayload {
   to: string | string[]
   subject: string
   html: string
   replyTo?: string
 }
 
-interface CertificationStatusPayload {
-  type: 'certification_status'
-  certificationId: string
-  userId: string
-  newStatus: string
-  dossierNumber: string
-  produitNom: string
-}
+type Payload = CertificationPayload | WelcomePayload | DirectPayload
 
-interface WelcomePayload {
-  type: 'welcome'
-  userId: string
-  fullName: string
-  email: string
-}
+const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+const resendApiKey = Deno.env.get('RESEND_API_KEY') ?? ''
+const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') ?? ''
+const appUrl = (Deno.env.get('APP_URL') ?? 'https://cemac-integra.vercel.app').replace(/\/$/, '')
 
-type Payload = EmailPayload | CertificationStatusPayload | WelcomePayload
+const admin = createClient(supabaseUrl, serviceRoleKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+})
 
-// ── Templates HTML ──────────────────────────────────────────────────────────
-
-const STATUS_LABELS: Record<string, string> = {
-  draft:             'Brouillon',
-  submitted:         'Soumis',
-  under_review:      'En cours d\'examen',
-  field_validation:  'Validation terrain',
+const statusLabels: Record<string, string> = {
+  draft: 'Brouillon',
+  submitted: 'Soumis',
+  under_review: "En cours d'examen",
+  field_validation: 'Validation terrain',
   commission_review: 'Examen commission',
-  approved:          '✅ Approuvé',
-  rejected:          '❌ Rejeté',
-  suspended:         '⏸ Suspendu',
-  expired:           'Expiré',
+  approved: 'Approuvé',
+  rejected: 'Rejeté',
+  suspended: 'Suspendu',
+  expired: 'Expiré',
 }
 
-function certificationStatusHtml(dossier: string, produit: string, status: string): string {
-  const label = STATUS_LABELS[status] ?? status
-  const color = status === 'approved' ? '#15803d'
-              : status === 'rejected' ? '#dc2626'
-              : status === 'suspended' ? '#d97706'
-              : '#125c59'
-  return `
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr><td align="center" style="padding:40px 16px">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.08)">
-        <!-- Header -->
-        <tr><td style="background:#0f3c38;padding:32px;text-align:center">
-          <h1 style="margin:0;color:#fff;font-size:24px;font-weight:800;letter-spacing:-0.5px">CEMAC INTEGRA</h1>
-          <p style="margin:8px 0 0;color:rgba(255,255,255,.7);font-size:14px">Plateforme de certification CEMAC</p>
-        </td></tr>
-        <!-- Body -->
-        <tr><td style="padding:40px 32px">
-          <h2 style="margin:0 0 8px;color:#111;font-size:20px">Mise à jour de votre dossier</h2>
-          <p style="margin:0 0 24px;color:#555;font-size:15px">Le statut de votre demande de certification a été mis à jour.</p>
-          <table width="100%" cellpadding="16" style="background:#f9fafb;border-radius:8px;margin-bottom:24px">
-            <tr>
-              <td style="color:#6b7280;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Dossier</td>
-              <td style="color:#111;font-size:14px;font-weight:700;text-align:right">${dossier}</td>
-            </tr>
-            <tr>
-              <td style="color:#6b7280;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;border-top:1px solid #e5e7eb">Produit</td>
-              <td style="color:#111;font-size:14px;text-align:right;border-top:1px solid #e5e7eb">${produit}</td>
-            </tr>
-            <tr>
-              <td style="color:#6b7280;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;border-top:1px solid #e5e7eb">Nouveau statut</td>
-              <td style="border-top:1px solid #e5e7eb;text-align:right">
-                <span style="display:inline-block;padding:4px 12px;border-radius:999px;background:${color};color:#fff;font-size:13px;font-weight:700">${label}</span>
-              </td>
-            </tr>
-          </table>
-          <div style="text-align:center;margin-top:32px">
-            <a href="${APP_URL}/certifications" style="display:inline-block;padding:14px 32px;background:#0f3c38;color:#fff;text-decoration:none;border-radius:8px;font-size:15px;font-weight:700">
-              Voir mon dossier →
-            </a>
-          </div>
-        </td></tr>
-        <!-- Footer -->
-        <tr><td style="background:#f9fafb;padding:24px 32px;text-align:center;border-top:1px solid #e5e7eb">
-          <p style="margin:0;color:#9ca3af;font-size:12px">CEMAC INTEGRA · Plateforme officielle de certification CEMAC</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`
+function json(req: Request, body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
+  })
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
+}
+
+function certificationHtml(dossier: string, product: string, status: string): string {
+  const label = statusLabels[status] ?? status
+  return `<!doctype html>
+<html lang="fr"><body style="font-family:Arial,sans-serif;background:#f4f4f5;padding:24px">
+<main style="max-width:600px;margin:auto;background:white;padding:32px;border-radius:12px">
+<h1 style="color:#0f3c38">CEMAC INTEGRA</h1>
+<h2>Mise à jour de votre dossier</h2>
+<p>Le statut de votre demande de certification a été mis à jour.</p>
+<p><strong>Dossier :</strong> ${escapeHtml(dossier)}<br>
+<strong>Produit :</strong> ${escapeHtml(product)}<br>
+<strong>Nouveau statut :</strong> ${escapeHtml(label)}</p>
+<p><a href="${escapeHtml(appUrl)}/certifications">Consulter mon dossier</a></p>
+</main></body></html>`
 }
 
 function welcomeHtml(fullName: string): string {
-  return `
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr><td align="center" style="padding:40px 16px">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.08)">
-        <tr><td style="background:linear-gradient(135deg,#0f3c38,#125c59);padding:40px 32px;text-align:center">
-          <h1 style="margin:0;color:#fff;font-size:26px;font-weight:800">Bienvenue sur CEMAC INTEGRA</h1>
-          <p style="margin:12px 0 0;color:rgba(255,255,255,.75);font-size:15px">La plateforme officielle de certification des produits CEMAC</p>
-        </td></tr>
-        <tr><td style="padding:40px 32px">
-          <p style="margin:0 0 16px;color:#111;font-size:16px;font-weight:600">Bonjour ${fullName} 👋</p>
-          <p style="margin:0 0 16px;color:#555;font-size:15px;line-height:1.6">
-            Votre compte CEMAC INTEGRA est maintenant actif. Vous pouvez dès à présent soumettre vos demandes de certification et accéder à la marketplace régionale.
-          </p>
-          <ul style="color:#555;font-size:14px;line-height:2;padding-left:20px">
-            <li>Créer votre profil entreprise</li>
-            <li>Soumettre votre première certification</li>
-            <li>Publier vos produits sur la marketplace</li>
-            <li>Accéder aux données du marché CEMAC</li>
-          </ul>
-          <div style="text-align:center;margin-top:32px">
-            <a href="${APP_URL}/dashboard" style="display:inline-block;padding:14px 32px;background:#0f3c38;color:#fff;text-decoration:none;border-radius:8px;font-size:15px;font-weight:700">
-              Accéder à mon espace →
-            </a>
-          </div>
-        </td></tr>
-        <tr><td style="background:#f9fafb;padding:24px 32px;text-align:center;border-top:1px solid #e5e7eb">
-          <p style="margin:0;color:#9ca3af;font-size:12px">CEMAC INTEGRA · Si vous n'avez pas créé ce compte, ignorez cet email.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`
+  return `<!doctype html>
+<html lang="fr"><body style="font-family:Arial,sans-serif;background:#f4f4f5;padding:24px">
+<main style="max-width:600px;margin:auto;background:white;padding:32px;border-radius:12px">
+<h1 style="color:#0f3c38">Bienvenue sur CEMAC INTEGRA</h1>
+<p>Bonjour ${escapeHtml(fullName)},</p>
+<p>Votre compte est maintenant actif.</p>
+<p><a href="${escapeHtml(appUrl)}/dashboard">Accéder à mon espace</a></p>
+</main></body></html>`
 }
 
-// ── Envoi via Resend API ────────────────────────────────────────────────────
+async function authenticate(req: Request): Promise<{
+  internal: boolean
+  role: Role | null
+  userClient: SupabaseClient | null
+}> {
+  const authorization = req.headers.get('Authorization') ?? ''
+  const token = authorization.replace(/^Bearer\s+/i, '')
 
-async function sendEmail(payload: EmailPayload): Promise<{ id?: string; error?: string }> {
-  if (!RESEND_API_KEY) {
-    console.error('[send-email] RESEND_API_KEY non configuré')
-    return { error: 'RESEND_API_KEY manquant' }
+  if (!token) return { internal: false, role: null, userClient: null }
+  if (serviceRoleKey && token === serviceRoleKey) {
+    return { internal: true, role: null, userClient: null }
   }
 
-  const res = await fetch('https://api.resend.com/emails', {
+  const userClient = createClient(
+    supabaseUrl,
+    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    },
+  )
+  const { data: { user }, error } = await userClient.auth.getUser(token)
+  if (error || !user) return { internal: false, role: null, userClient: null }
+
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('role, password_reset_required')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  return {
+    internal: false,
+    role: profile && !profile.password_reset_required
+      ? (profile.role as Role)
+      : null,
+    userClient,
+  }
+}
+
+async function sendEmail(payload: DirectPayload): Promise<string> {
+  if (!resendApiKey || !fromEmail) {
+    throw new Error('Email delivery is not configured')
+  }
+
+  const recipients = Array.isArray(payload.to) ? payload.to : [payload.to]
+  if (
+    recipients.length < 1 ||
+    recipients.length > 10 ||
+    recipients.some((email) => email.length > 254 || !email.includes('@')) ||
+    payload.subject.length < 1 ||
+    payload.subject.length > 200 ||
+    payload.html.length > 200_000
+  ) {
+    throw new Error('Invalid email payload')
+  }
+
+  const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${RESEND_API_KEY}`,
+      'Authorization': `Bearer ${resendApiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: FROM_EMAIL,
-      to: Array.isArray(payload.to) ? payload.to : [payload.to],
+      from: fromEmail,
+      to: recipients,
       subject: payload.subject,
       html: payload.html,
-      ...(payload.replyTo && { reply_to: payload.replyTo }),
+      ...(payload.replyTo ? { reply_to: payload.replyTo } : {}),
     }),
   })
 
-  const data = await res.json()
-  if (!res.ok) {
-    console.error('[send-email] Resend error:', data)
-    return { error: data.message ?? 'Erreur Resend' }
+  if (!response.ok) {
+    console.error('[send-email] Resend rejected request', response.status)
+    throw new Error('Email provider rejected the request')
   }
-  return { id: data.id }
+
+  const result = await response.json() as { id?: string }
+  if (!result.id) throw new Error('Email provider returned an invalid response')
+  return result.id
 }
 
-// ── Handler principal ────────────────────────────────────────────────────────
-
 serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  if (!isOriginAllowed(req)) return json(req, { error: 'Origin not allowed' }, 403)
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(req) })
+  if (req.method !== 'POST') return json(req, { error: 'Method not allowed' }, 405)
+
+  const contentLength = Number(req.headers.get('content-length') ?? '0')
+  if (contentLength > 220_000) return json(req, { error: 'Payload too large' }, 413)
+
+  const caller = await authenticate(req)
+  if (!caller.internal && !caller.role) return json(req, { error: 'Unauthorized' }, 401)
 
   try {
-    // Vérifier authentification (seul le service role ou un utilisateur connecté peut appeler)
-    const authHeader = req.headers.get('Authorization') ?? ''
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    )
-
     const payload = await req.json() as Payload
 
-    // ── Email direct (type non spécifié = envoi brut) ──
-    if (!('type' in payload)) {
-      const result = await sendEmail(payload as EmailPayload)
-      return new Response(JSON.stringify(result), {
-        status: result.error ? 500 : 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    if ('type' in payload && payload.type === 'certification_status') {
+      if (
+        !caller.internal &&
+        !['super_admin', 'cemac_officer', 'chamber_agent', 'auditor'].includes(caller.role ?? '')
+      ) {
+        return json(req, { error: 'Forbidden' }, 403)
+      }
+
+      const dossier = payload.dossierNumber ?? payload.data?.dossier
+      let accessibleQuery = caller.userClient
+        ?.from('certifications')
+        .select('id')
+        .limit(1)
+      accessibleQuery = payload.certificationId
+        ? accessibleQuery?.eq('id', payload.certificationId)
+        : accessibleQuery?.eq('numero_dossier', dossier ?? '')
+
+      if (!caller.internal) {
+        const { data: accessible } = await accessibleQuery!.maybeSingle()
+        if (!accessible) return json(req, { error: 'Forbidden' }, 403)
+      }
+
+      let certificationQuery = admin
+        .from('certifications')
+        .select('id, numero_dossier, produit_nom, statut, entreprise:entreprises!inner(owner_id, email_contact)')
+      certificationQuery = payload.certificationId
+        ? certificationQuery.eq('id', payload.certificationId)
+        : certificationQuery.eq('numero_dossier', dossier ?? '')
+
+      const { data: certification, error } = await certificationQuery.maybeSingle()
+      if (error || !certification) return json(req, { error: 'Certification not found' }, 404)
+
+      const entreprise = certification.entreprise as unknown as {
+        owner_id: string
+        email_contact: string | null
+      }
+      const { data: owner } = await admin
+        .from('profiles')
+        .select('email')
+        .eq('id', entreprise.owner_id)
+        .maybeSingle()
+      const recipient = entreprise.email_contact ?? owner?.email
+      if (!recipient) return json(req, { error: 'Recipient not found' }, 404)
+
+      const label = statusLabels[certification.statut] ?? certification.statut
+      const id = await sendEmail({
+        to: recipient,
+        subject: `Dossier ${certification.numero_dossier} — ${label}`,
+        html: certificationHtml(
+          certification.numero_dossier,
+          certification.produit_nom,
+          certification.statut,
+        ),
       })
+
+      await admin.from('notifications').insert({
+        user_id: entreprise.owner_id,
+        type: 'certification_status',
+        title: `Statut mis à jour : ${label}`,
+        body: `Votre dossier ${certification.numero_dossier} est maintenant : ${label}`,
+        message: `Votre dossier ${certification.numero_dossier} est maintenant : ${label}`,
+        certification_id: certification.id,
+      })
+
+      return json(req, { id })
     }
 
-    // ── Email de bienvenue ──
-    if (payload.type === 'welcome') {
-      const { fullName, email } = payload as WelcomePayload
-      const result = await sendEmail({
-        to: email,
-        subject: 'Bienvenue sur CEMAC INTEGRA 🎉',
-        html: welcomeHtml(fullName),
-      })
-      return new Response(JSON.stringify(result), {
-        status: result.error ? 500 : 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    if ('type' in payload && payload.type === 'welcome') {
+      if (!caller.internal && !['super_admin', 'cemac_officer'].includes(caller.role ?? '')) {
+        return json(req, { error: 'Forbidden' }, 403)
+      }
 
-    // ── Notification changement de statut certification ──
-    if (payload.type === 'certification_status') {
-      const { userId, dossierNumber, produitNom, newStatus } = payload as CertificationStatusPayload
-
-      // Récupérer l'email de l'utilisateur
-      const { data: profile } = await supabaseAdmin
+      const { data: profile } = await admin
         .from('profiles')
         .select('email, full_name')
-        .eq('id', userId)
-        .single()
+        .eq('id', payload.userId)
+        .maybeSingle()
+      if (!profile?.email) return json(req, { error: 'Recipient not found' }, 404)
 
-      if (!profile?.email) {
-        return new Response(JSON.stringify({ error: 'Utilisateur introuvable' }), {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const statusLabel = STATUS_LABELS[newStatus] ?? newStatus
-      const result = await sendEmail({
+      const id = await sendEmail({
         to: profile.email,
-        subject: `Dossier ${dossierNumber} — Statut mis à jour : ${statusLabel}`,
-        html: certificationStatusHtml(dossierNumber, produitNom, newStatus),
+        subject: 'Bienvenue sur CEMAC INTEGRA',
+        html: welcomeHtml(profile.full_name ?? 'cher membre'),
       })
-
-      // Créer une notification en base
-      if (!result.error) {
-        await supabaseAdmin.from('notifications').insert({
-          user_id: userId,
-          type: 'certification_status',
-          title: `Statut mis à jour : ${statusLabel}`,
-          body: `Votre dossier ${dossierNumber} (${produitNom}) est maintenant : ${statusLabel}`,
-          certification_id: (payload as CertificationStatusPayload).certificationId,
-        })
-      }
-
-      return new Response(JSON.stringify(result), {
-        status: result.error ? 500 : 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json(req, { id })
     }
 
-    return new Response(JSON.stringify({ error: 'Type de payload inconnu' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    if (!caller.internal && !['super_admin', 'cemac_officer'].includes(caller.role ?? '')) {
+      return json(req, { error: 'Forbidden' }, 403)
+    }
 
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erreur interne'
+    const direct = payload as DirectPayload
+    const id = await sendEmail(direct)
+    return json(req, { id })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal error'
     console.error('[send-email]', message)
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    const status = message === 'Invalid email payload' ? 400 : 500
+    return json(req, { error: status === 400 ? message : 'Email delivery failed' }, status)
   }
 })

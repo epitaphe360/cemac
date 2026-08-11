@@ -78,29 +78,25 @@ export const PUBLIC_PRICING_PLANS: PublicPlanDefinition[] = [
   },
 ]
 
-export const SETTINGS_UPGRADE_PLANS = [
-  {
-    id: 'sme' as const,
-    label: 'Pro',
-    price: '29 000 XAF / mois',
-    description: 'Pour les PME actives dans la zone CEMAC.',
-    highlights: [
-      'Certifications illimitées',
-      'Marketplace publishable',
-      'Intelligence de marché',
-      'Support prioritaire',
-    ],
-  },
-  {
-    id: 'enterprise' as const,
-    label: 'Entreprise',
-    price: '99 000 XAF / mois',
-    description: 'Pour les grandes entreprises et groupes.',
-    highlights: [
-      'Tout du plan Pro',
-      'API dédiée',
-      'Tableau de bord logistique avancé',
-      'Gestionnaire de compte dédié',
-    ],
-  },
-]
+export const formatPlanPrice = (amount: number, period: 'monthly' | 'yearly' = 'monthly') =>
+  amount === 0 ? 'Gratuit' : `${amount.toLocaleString('fr-FR')} XAF / ${period === 'yearly' ? 'an' : 'mois'}`
+
+export function getPlanPrice(
+  planId: PublicPlanId | 'institutional',
+  period: 'monthly' | 'yearly' = 'monthly',
+): number | null {
+  if (planId === 'institutional') return null
+  const plan = PUBLIC_PRICING_PLANS.find((candidate) => candidate.id === planId)
+  if (!plan) return null
+  return period === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice
+}
+
+export const SETTINGS_UPGRADE_PLANS = PUBLIC_PRICING_PLANS
+  .filter((plan) => plan.id !== 'free')
+  .map((plan) => ({
+    id: plan.id,
+    label: plan.name,
+    price: formatPlanPrice(plan.monthlyPrice),
+    description: plan.description,
+    highlights: plan.features.filter((feature) => feature.included).slice(0, 4).map((feature) => feature.label),
+  }))

@@ -156,10 +156,10 @@ export function LandingFooter() {
       {/* Bottom bar */}
       <div className="border-t border-cemac-900">
         <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-cemac-500 text-sm">
+          <p className="text-cemac-300 text-sm">
             © {new Date().getFullYear()} CEMAC INTEGRA. {t('footer.rights')}
           </p>
-          <div className="flex items-center gap-1 text-cemac-500 text-xs">
+          <div className="flex items-center gap-1 text-cemac-300 text-xs">
             <span>{t('footer.compliance')}</span>
           </div>
         </div>

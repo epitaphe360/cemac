@@ -75,18 +75,18 @@ export function LandingPage() {
               {t('landing.hero_description')}
             </motion.p>
             
-            <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row gap-4">
-              <Link to="/auth/register">
-                <Button size="lg" className="w-full sm:w-auto bg-green-600 hover:bg-green-500 text-white px-8 py-6 text-lg rounded-full shadow-[0_0_40px_rgba(22,163,74,0.4)] transition-all hover:scale-105">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button asChild size="lg" className="w-full sm:w-auto bg-green-700 hover:bg-green-800 text-white px-8 py-6 text-lg rounded-full shadow-[0_0_40px_rgba(22,163,74,0.4)] transition-all hover:scale-105">
+                <Link to="/auth/register">
                   {t('landing.hero_portal')} <ArrowRight className="ml-2 w-5 h-5" aria-hidden />
-                </Button>
-              </Link>
-              <Link to="/auth/login">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto px-8 py-6 text-lg rounded-full border-white/20 hover:bg-white/10 text-white backdrop-blur-md bg-white/5">
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="w-full sm:w-auto px-8 py-6 text-lg rounded-full border-white/20 hover:bg-white/10 text-white backdrop-blur-md bg-white/5">
+                <Link to="/auth/login">
                   {t('landing.hero_login')}
-                </Button>
-              </Link>
-            </motion.div>
+                </Link>
+              </Button>
+            </div>
           </motion.div>
 
           {/* 3D FLOATING ELEMENTS CARD */}
@@ -95,7 +95,7 @@ export function LandingPage() {
             animate={{ opacity: 1, x: 0, rotateY: 0, rotateX: 0 }}
             transition={{ duration: 1.2, ease: "easeOut" }}
             className="hidden md:block relative perspective-[1000px] mt-16"
-            aria-label="Aperçu des données en temps réel"
+            aria-label="Aperçu illustratif du suivi logistique"
           >
             <div className="bg-white/5 backdrop-blur-2xl border border-white/10 p-8 rounded-3xl shadow-2xl relative z-10 transform-gpu hover:rotate-y-[-5deg] hover:rotate-x-[5deg] transition-transform duration-500">
               <div className="flex justify-between items-center mb-8 pb-6 border-b border-white/10">
@@ -113,7 +113,7 @@ export function LandingPage() {
                         <Anchor className="w-5 h-5" aria-hidden />
                       </div>
                       <div>
-                        <p className="font-medium text-white">Navire MSC-Douala</p>
+                        <p className="font-medium text-white">Dossier de démonstration {i}</p>
                         <p className="text-xs text-gray-400">{t('landing.cert_approved')}</p>
                       </div>
                     </div>

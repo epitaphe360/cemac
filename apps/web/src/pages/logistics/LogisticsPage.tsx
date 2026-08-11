@@ -119,7 +119,10 @@ export function LogisticsPage() {
     doc.text('CERTIFICAT DE CIRCULATION DES MARCHANDISES', pageW / 2, 13, { align: 'center' })
     doc.setFontSize(11)
     doc.setFont('helvetica', 'normal')
-    doc.text('EUR.1 — Zone de Libre-Échange ACP-UE', pageW / 2, 21, { align: 'center' })
+    doc.text('PROJET NON OFFICIEL — EUR.1', pageW / 2, 16, { align: 'center' })
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Document préparatoire non enregistré et sans valeur douanière', pageW / 2, 22, { align: 'center' })
     doc.text(`N° ${refNumber}`, pageW / 2, 27, { align: 'center' })
 
     // ── Corps : blocs info ──────────────────────────────────────────────
@@ -202,7 +205,7 @@ export function LogisticsPage() {
 
     // ── Téléchargement ──────────────────────────────────────────────────
     doc.save(`EUR1_${refNumber}.pdf`)
-    toast.success(t('logistics.eur1.toast_generated', { ref: refNumber }))
+    toast.success(`Projet EUR.1 généré (${refNumber}) — document non officiel`)
     setEur1Form({ certificationId: '', exporterName: '', importerName: '', destination: '', description: '', grossWeight: '', packages: '' })
   }
 
@@ -542,6 +545,9 @@ export function LogisticsPage() {
               <CardDescription>
                 {t('logistics.eur1.desc')}
               </CardDescription>
+              <p className="text-xs text-amber-700">
+                Ce module génère uniquement un projet PDF local. La demande n’est pas enregistrée et le document n’est pas un certificat officiel.
+              </p>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleEur1Submit} className="space-y-4">

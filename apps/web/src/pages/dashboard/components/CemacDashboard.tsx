@@ -15,7 +15,9 @@ export function CemacDashboard() {
   const profile = useAuthStore((s) => s.profile)
   
   const [stats, setStats] = useState({ commissionReview: 0, totalApproved: 0, pendingGlobal: 0 })
-  const [pendingCerts, setPendingCerts] = useState<any[]>([])
+  const [pendingCerts, setPendingCerts] = useState<
+    (Certification & { entreprise: { raison_sociale: string; pays: string } })[]
+  >([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

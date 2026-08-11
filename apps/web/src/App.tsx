@@ -59,7 +59,7 @@ export default function App() {
   if (!isInitialized) return <PageLoader />
 
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter>
       <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* ── Page de vérification QR Code (publique, sans layout) ── */}
@@ -76,6 +76,7 @@ export default function App() {
           <Route path="/cookies"           element={<CookiesPage />} />
           <Route path="/mentions-legales"  element={<LegalNoticePage />} />
           <Route path="/marketplace-public" element={<MarketplacePage />} />
+          <Route path="/marketplace-public/:id" element={<MarketplaceProductDetailPage />} />
         </Route>
 
         {/* ── Auth (sans layout) ── */}

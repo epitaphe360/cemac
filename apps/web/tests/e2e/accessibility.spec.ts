@@ -46,12 +46,14 @@ test('[A11y] Login form is keyboard navigable', async ({ page }) => {
   await page.goto('/auth/login')
   await page.waitForLoadState('networkidle')
 
-  // Tab to email field
-  await page.keyboard.press('Tab')
   const emailField = page.getByRole('textbox', { name: /email/i })
+  await emailField.focus()
   await expect(emailField).toBeFocused()
 
-  // Tab to password field
+  // The recovery link is intentionally next in DOM order.
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('link', { name: /mot de passe oublié/i })).toBeFocused()
+
   await page.keyboard.press('Tab')
   const passwordField = page.locator('input[type="password"]').first()
   await expect(passwordField).toBeFocused()

@@ -116,13 +116,13 @@ export function AboutPage() {
             <div className="grid grid-cols-2 gap-4">
               {[
                 { val: '2 000+', label: 'Entreprises', bg: 'bg-cemac-700 text-white' },
-                { val: '12 500+', label: 'Certifications', bg: 'bg-gold-500 text-white' },
+                { val: '12 500+', label: 'Certifications', bg: 'bg-gold-800 text-white' },
                 { val: '6', label: 'Pays CEMAC', bg: 'bg-gray-900 text-white' },
                 { val: '98 %', label: 'Satisfaction', bg: 'bg-cemac-100 text-cemac-900' },
               ].map((s) => (
                 <div key={s.label} className={`${s.bg} rounded-2xl p-6 flex flex-col justify-between`}>
                   <p className="text-3xl font-black">{s.val}</p>
-                  <p className={`text-sm font-medium ${s.bg.includes('text-white') ? 'text-white/70' : 'text-cemac-600'}`}>
+                  <p className={`text-sm font-medium ${s.bg.includes('text-white') ? 'text-white' : 'text-cemac-600'}`}>
                     {s.label}
                   </p>
                 </div>

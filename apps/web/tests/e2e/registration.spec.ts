@@ -55,7 +55,7 @@ test.describe('Registration — navigation guards', () => {
 
   test('login page is accessible from registration', async ({ page }) => {
     await page.goto('/auth/register')
-    const loginLink = page.getByRole('link', { name: /connexion|déjà un compte/i })
+    const loginLink = page.getByRole('link', { name: /connexion|se connecter|déjà un compte/i })
     await expect(loginLink).toBeVisible()
     await loginLink.click()
     await expect(page).toHaveURL(/login|connexion/i)

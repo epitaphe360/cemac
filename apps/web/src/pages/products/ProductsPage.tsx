@@ -1,5 +1,5 @@
 import { LoadingSpinner, PageLoader, LoadingTableFull, LoadingCard } from "@/components/shared/LoadingSpinner";
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { Plus, Pencil, Trash2, Eye, EyeOff, Package, Upload, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth.store'
@@ -60,6 +60,7 @@ const emptyForm = (defaultPays = ''): ProductForm => ({
 export function ProductsPage() {
   const { t } = useTranslation()
   const entreprise = useAuthStore((s) => s.entreprise)
+  const profile = useAuthStore((s) => s.profile)
   const [products, setProducts] = useState<Produit[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -71,7 +72,7 @@ export function ProductsPage() {
   const [imageUploading, setImageUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     if (!entreprise) return
     const { data, error } = await supabase
       .from('produits')
@@ -80,9 +81,9 @@ export function ProductsPage() {
       .order('created_at', { ascending: false })
     if (!error && data) setProducts(data)
     setLoading(false)
-  }
+  }, [entreprise])
 
-  useEffect(() => { fetchProducts() }, [entreprise?.id])
+  useEffect(() => { void fetchProducts() }, [fetchProducts])
 
   const openAdd = () => {
     setEditing(null)
@@ -120,15 +121,15 @@ export function ProductsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!entreprise) return
+    if (!entreprise || !profile) return
     if (!form.nom.trim()) { toast.error(t('products.toasts.name_required')); return }
     setSaving(true)
 
     let finalImageUrl = form.image_url
-    if (imageFile && entreprise) {
+    if (imageFile) {
       setImageUploading(true)
       const ext = imageFile.name.split('.').pop()
-      const path = `${entreprise.id}/${Date.now()}.${ext}`
+      const path = `${profile.id}/${Date.now()}.${ext}`
       const { data: upData, error: upErr } = await supabase.storage
         .from('product-images')
         .upload(path, imageFile, { upsert: true })

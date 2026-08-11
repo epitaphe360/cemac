@@ -339,7 +339,7 @@ describe('CertificationDetailPage — workflow transitions', () => {
     })
   })
 
-  it('T5 — cemac_officer approve calls update with statut=approved and qr_code_data', async () => {
+  it('T5 — approval records officer, approval date, and 24-month expiration', async () => {
     mockProfile = { id: 'user-5', full_name: 'Mireille Ondo', role: 'cemac_officer', country: 'CM' }
 
     const certUpdateEq = vi.fn().mockResolvedValue({ error: null })
@@ -371,8 +371,16 @@ describe('CertificationDetailPage — workflow transitions', () => {
         expect.objectContaining({
           statut: 'approved',
           qr_code_data: expect.stringContaining('/verify/cert-abc'),
+          agent_id: 'user-5',
+          date_approbation: expect.any(String),
+          date_expiration: expect.any(String),
         }),
       )
+      const payload = certUpdate.mock.calls[0][0]
+      const approvedAt = new Date(payload.date_approbation)
+      const expiresAt = new Date(payload.date_expiration)
+      expect(expiresAt.getUTCFullYear() * 12 + expiresAt.getUTCMonth())
+        .toBe(approvedAt.getUTCFullYear() * 12 + approvedAt.getUTCMonth() + 24)
     })
   })
 

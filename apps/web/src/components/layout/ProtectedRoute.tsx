@@ -8,10 +8,13 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps) {
-  const { isAuthenticated, isInitialized, role } = useAuthStore()
+  const { isAuthenticated, isInitialized, role, profile } = useAuthStore()
 
   if (!isInitialized) return <PageLoader />
   if (!isAuthenticated()) return <Navigate to="/auth/login" replace />
+  if (profile?.password_reset_required) {
+    return <Navigate to="/auth/reset-password" replace />
+  }
   if (requiredRoles && !requiredRoles.includes(role())) {
     return <Navigate to="/dashboard" replace />
   }

@@ -19,7 +19,8 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { useTranslation } from 'react-i18next'
 import { formatDate, cn } from '@/lib/utils'
 import { CERTIFICATION_STATUS_LABELS, CEMAC_COUNTRIES } from '@/lib/constants'
-import type { Profile, Entreprise, Certification, Document, WorkflowEvent, Produit, ChambreCommerce, Corridor, LogisticsAlert } from '@/types'
+import { getPlanPrice, type PublicPlanId } from '@/lib/pricing'
+import type { Profile, Entreprise, Certification, Document, WorkflowEvent, Produit, ChambreCommerce, Corridor, LogisticsAlert, ContactRequest } from '@/types'
 import toast from 'react-hot-toast'
 
 type Tab = 'overview' | 'certifications' | 'users' | 'companies' | 'products' | 'documents' | 'audit' | 'chambers' | 'logistics' | 'api_config' | 'billing' | 'contact_requests'
@@ -173,10 +174,6 @@ function AdminPageInner() {
   const [creatingInvoice, setCreatingInvoice] = useState(false)
 
   // ── Contact Requests ─────────────────────────────────────────────────────
-  interface ContactRequest {
-    id: string; full_name: string; email: string; company: string
-    country: string; reason: string; message: string; created_at: string
-  }
   const [contacts, setContacts] = useState<ContactRequest[]>([])
   const [contactsLoading, setContactsLoading] = useState(false)
   const [contactSearch, setContactSearch] = useState('')
@@ -336,14 +333,21 @@ function AdminPageInner() {
     }
     if (activeTab === 'api_config') {
       setApiConfigsLoading(true)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(supabase as any).from('api_configs').select('*').order('category').order('name')
-        .then(({ data, error }: { data: ApiConfig[] | null; error: unknown }) => {
+      supabase.from('api_configs').select('*').order('category').order('name')
+        .then(({ data, error }) => {
           if (error) toast.error(t('admin.toasts.load_error', 'Erreur chargement API configs'))
           else if (data) {
-            setApiConfigs(data)
+            const configs = data.map((item) => ({
+              ...item,
+              config: (
+                item.config && typeof item.config === 'object' && !Array.isArray(item.config)
+                  ? item.config
+                  : {}
+              ) as Record<string, string>,
+            }))
+            setApiConfigs(configs)
             const draft: Record<string, Record<string, string>> = {}
-            data.forEach((c) => { draft[c.key] = { ...(c.config as Record<string, string>) } })
+            configs.forEach((c) => { draft[c.key] = { ...c.config } })
             setApiConfigsDraft(draft)
             fetchedTabs.current.add('api_config')
           }
@@ -352,27 +356,32 @@ function AdminPageInner() {
     }
     if (activeTab === 'billing') {
       setInvoicesLoading(true)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(supabase as any)
-        .from('invoices')
-        .select('*, profile:profiles!invoices_user_id_fkey (email, full_name)')
-        .order('issued_at', { ascending: false })
-        .limit(300)
-        .then(({ data, error }: { data: AdminInvoice[] | null; error: unknown }) => {
-          if (error) toast.error(t('admin.toasts.load_error', 'Erreur chargement factures'))
-          else { setInvoices(data ?? []); fetchedTabs.current.add('billing') }
+      Promise.all([
+        supabase.from('invoices').select('*').order('issued_at', { ascending: false }).limit(300),
+        supabase.from('profiles').select('id, email, full_name'),
+      ]).then(([invoiceResult, profileResult]) => {
+          if (invoiceResult.error || profileResult.error) {
+            toast.error(t('admin.toasts.load_error', 'Erreur chargement factures'))
+          } else {
+            const profilesById = new Map((profileResult.data ?? []).map((item) => [item.id, item]))
+            setInvoices((invoiceResult.data ?? []).map((invoice) => ({
+              ...invoice,
+              profile: profilesById.get(invoice.user_id),
+            })))
+            fetchedTabs.current.add('billing')
+          }
           setInvoicesLoading(false)
         })
     }
     if (activeTab === 'contact_requests') {
       setContactsLoading(true)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(supabase as any)
+      supabase
         .from('contact_requests')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(300)
-        .then(({ data, error }: { data: ContactRequest[] | null; error: unknown }) => {
+        .then(({ data, error }) => {
           if (error) toast.error(t('admin.toasts.load_error', 'Erreur chargement demandes contact'))
           else { setContacts(data ?? []); fetchedTabs.current.add('contact_requests') }
           setContactsLoading(false)
@@ -440,7 +449,10 @@ function AdminPageInner() {
   // ── Actions: Users ───────────────────────────────────────────────────────
   const updateUserRole = async (id: string, newRole: string) => {
     setUpdatingUser(id)
-    const { error } = await supabase.from('profiles').update({ role: newRole, updated_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await supabase.rpc('admin_update_user_role', {
+      target_user_id: id,
+      target_role: newRole,
+    })
     if (error) { toast.error(t('admin.toasts.role_error')) }
     else { setUsers((prev) => prev.map((u) => u.id === id ? { ...u, role: newRole } : u)); toast.success(t('admin.toasts.role_updated')) }
     setUpdatingUser(null)
@@ -1308,8 +1320,7 @@ function AdminPageInner() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={async () => {
-                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                              const { error } = await (supabase as any).from('api_configs').update({ is_active: !isActive }).eq('key', svc.key)
+                              const { error } = await supabase.from('api_configs').update({ is_active: !isActive }).eq('key', svc.key)
                               if (error) { toast.error(t('admin.api_config.toggle_error')); return }
                               setApiConfigs((prev) => prev.map((c) => c.key === svc.key ? { ...c, is_active: !isActive } : c))
                               toast.success(!isActive ? t('admin.api_config.activated') : t('admin.api_config.deactivated'))
@@ -1391,8 +1402,7 @@ function AdminPageInner() {
                           <Button size="sm" className="flex-1 text-xs" disabled={isSaving || !isDirty}
                             onClick={async () => {
                               setSavingApiConfig(svc.key)
-                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                              const { error } = await (supabase as any).from('api_configs').update({ config: currentDraft, updated_at: new Date().toISOString() }).eq('key', svc.key)
+                              const { error } = await supabase.from('api_configs').update({ config: currentDraft, updated_at: new Date().toISOString() }).eq('key', svc.key)
                               if (error) { toast.error(t('admin.api_config.save_error')) }
                               else { setApiConfigs((prev) => prev.map((c) => c.key === svc.key ? { ...c, config: currentDraft } : c)); toast.success(t('admin.api_config.saved')) }
                               setSavingApiConfig(null)
@@ -1471,22 +1481,23 @@ function AdminPageInner() {
                       const CEMAC_TAX: Record<string, number> = { CM: 19.25, GA: 18, CG: 18.9, TD: 18, CF: 19, GQ: 15 }
                       const country = invoiceForm.country || (profileData.country ?? 'CM')
                       const taxRate = CEMAC_TAX[country] ?? 19.25
-                      const PLAN_PRICES: Record<string, number> = { free: 0, sme: 28635, enterprise: 174885, institutional: 0 }
-                      const amountHt = PLAN_PRICES[invoiceForm.plan_name] ?? 0
+                      const amountHt = getPlanPrice(
+                        invoiceForm.plan_name as PublicPlanId | 'institutional',
+                        invoiceForm.billing_period as 'monthly' | 'yearly',
+                      ) ?? 0
                       const taxAmount = Math.round((amountHt * taxRate) / 100)
                       const amountTtc = amountHt + taxAmount
                       const now = new Date()
                       const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      const { count } = await (supabase as any).from('invoices').select('id', { count: 'exact', head: true }).like('invoice_number', `INV-${ym}-%`)
+                      const { count } = await supabase.from('invoices').select('id', { count: 'exact', head: true }).like('invoice_number', `INV-${ym}-%`)
                       const seq = String((count ?? 0) + 1).padStart(4, '0')
                       const invoiceNumber = `INV-${ym}-${seq}`
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      const { error } = await (supabase as any).from('invoices').insert([{
+                      const { error } = await supabase.from('invoices').insert([{
                         invoice_number: invoiceNumber, user_id: profileData.id, plan_name: invoiceForm.plan_name,
                         amount_ht: amountHt, tax_rate: taxRate, tax_amount: taxAmount, amount_ttc: amountTtc,
                         currency: 'XAF', country, payment_method: invoiceForm.payment_method,
-                        payment_ref: invoiceForm.payment_ref || null, billing_period: invoiceForm.billing_period,
+                        payment_ref: invoiceForm.payment_ref || null,
+                        billing_period: invoiceForm.billing_period as 'monthly' | 'yearly',
                         notes: invoiceForm.notes || null, status: 'pending',
                       }])
                       if (error) { toast.error(t('admin.billing.toast_create_error')); setCreatingInvoice(false); return }
@@ -1501,9 +1512,17 @@ function AdminPageInner() {
                       setShowCreateInvoice(false)
                       setInvoiceForm({ user_email: '', plan_name: 'sme', payment_method: 'bank_transfer', payment_ref: '', billing_period: 'monthly', country: 'CM', notes: '' })
                       setInvoices([]); setInvoicesLoading(true)
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      ;(supabase as any).from('invoices').select('*, profile:profiles!invoices_user_id_fkey (email, full_name)').order('issued_at', { ascending: false }).limit(300)
-                        .then(({ data }: { data: AdminInvoice[] | null }) => { if (data) setInvoices(data); setInvoicesLoading(false) })
+                      Promise.all([
+                        supabase.from('invoices').select('*').order('issued_at', { ascending: false }).limit(300),
+                        supabase.from('profiles').select('id, email, full_name'),
+                      ]).then(([invoiceResult, profileResult]) => {
+                        const profilesById = new Map((profileResult.data ?? []).map((item) => [item.id, item]))
+                        setInvoices((invoiceResult.data ?? []).map((invoice) => ({
+                          ...invoice,
+                          profile: profilesById.get(invoice.user_id),
+                        })))
+                        setInvoicesLoading(false)
+                      })
                     } catch (_) { toast.error(t('admin.billing.toast_create_error')) }
                     setCreatingInvoice(false)
                   }}
@@ -1511,7 +1530,9 @@ function AdminPageInner() {
                   <div className="space-y-1"><label className="text-xs font-medium">{t('admin.billing.form_client')}</label><Input placeholder="email@..." value={invoiceForm.user_email} onChange={(e) => setInvoiceForm((p) => ({ ...p, user_email: e.target.value }))} required /></div>
                   <div className="space-y-1"><label className="text-xs font-medium">{t('admin.billing.form_plan')}</label>
                     <select className="w-full h-9 px-3 rounded-md border border-input bg-white text-sm" value={invoiceForm.plan_name} onChange={(e) => setInvoiceForm((p) => ({ ...p, plan_name: e.target.value }))}>
-                      <option value="free">Gratuit (0 XAF)</option><option value="sme">PME Pro (28 635 XAF HT)</option><option value="enterprise">Enterprise (174 885 XAF HT)</option>
+                      <option value="free">Gratuit (0 XAF)</option>
+                      <option value="sme">PME Pro ({getPlanPrice('sme')?.toLocaleString('fr-FR')} XAF HT)</option>
+                      <option value="enterprise">Enterprise ({getPlanPrice('enterprise')?.toLocaleString('fr-FR')} XAF HT)</option>
                     </select>
                   </div>
                   <div className="space-y-1"><label className="text-xs font-medium">{t('admin.billing.form_method')}</label>
@@ -1586,8 +1607,7 @@ function AdminPageInner() {
                                     <Button size="sm" variant="outline" className="h-6 text-xs px-2 text-green-700 border-green-300 hover:bg-green-50" disabled={updatingInvoice === inv.id}
                                       onClick={async () => {
                                         setUpdatingInvoice(inv.id)
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        const { error } = await (supabase as any).from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', inv.id)
+                                        const { error } = await supabase.from('invoices').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', inv.id)
                                         if (error) toast.error(t('admin.billing.toast_paid_error'))
                                         else { setInvoices((prev) => prev.map((i) => i.id === inv.id ? { ...i, status: 'paid' as const, paid_at: new Date().toISOString() } : i)); toast.success(t('admin.billing.toast_paid')) }
                                         setUpdatingInvoice(null)
@@ -1597,8 +1617,7 @@ function AdminPageInner() {
                                     <Button size="sm" variant="outline" className="h-6 text-xs px-2 text-red-700 border-red-300 hover:bg-red-50" disabled={updatingInvoice === inv.id}
                                       onClick={async () => {
                                         setUpdatingInvoice(inv.id)
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        const { error } = await (supabase as any).from('invoices').update({ status: 'cancelled' }).eq('id', inv.id)
+                                        const { error } = await supabase.from('invoices').update({ status: 'cancelled' }).eq('id', inv.id)
                                         if (error) toast.error(t('admin.billing.toast_paid_error'))
                                         else { setInvoices((prev) => prev.map((i) => i.id === inv.id ? { ...i, status: 'cancelled' as const } : i)); toast.success(t('admin.billing.toast_cancelled')) }
                                         setUpdatingInvoice(null)

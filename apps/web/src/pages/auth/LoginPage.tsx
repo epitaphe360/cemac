@@ -20,10 +20,10 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
-const DEMO_ACCOUNTS_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_ACCOUNTS === 'true'
+const DEMO_ACCOUNTS_ENABLED = import.meta.env.DEV
 
 // ── Comptes de démonstration ─────────────────────────────────
-const DEMO_ACCOUNTS = [
+const DEMO_ACCOUNTS = import.meta.env.DEV ? [
   {
     group: 'Administration CEMAC',
     color: 'bg-cemac-700 hover:bg-cemac-800 text-white',
@@ -53,7 +53,7 @@ const DEMO_ACCOUNTS = [
       { label: 'Agent Transit',     email: 'transit@sdv-cm.com',      password: 'Demo@2026!', role: 'logistics_agent' },
     ],
   },
-]
+] : []
 
 export function LoginPage() {
   const { t } = useTranslation()
@@ -160,6 +160,7 @@ export function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Masquer' : 'Afficher'}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
