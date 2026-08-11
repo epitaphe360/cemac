@@ -15,17 +15,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { usePricing } from '@/hooks/use-cms'
 import { CEMAC_COUNTRIES } from '@/lib/constants'
-import { SETTINGS_UPGRADE_PLANS } from '@/lib/pricing'
+import { findPricingPlan, getUpgradePlans } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
-
-const PLAN_DISPLAY_NAMES = {
-  free: 'Starter',
-  sme: 'Pro',
-  enterprise: 'Enterprise',
-  institutional: 'Institutionnel',
-} as const
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
@@ -75,18 +69,11 @@ const TABS: { id: Tab; label: string; icon: ElementType }[] = [
   { id: 'plan',          label: 'settings.tabs.plan',          icon: CreditCard },
 ]
 
-const PLAN_LABELS: Record<string, { label: string; color: string }> = {
-  free:          { label: 'Starter (Gratuit)',   color: 'bg-gray-100 text-gray-700' },
-  sme:           { label: 'Pro',                 color: 'bg-cemac-100 text-cemac-800' },
-  enterprise:    { label: 'Enterprise',          color: 'bg-purple-100 text-purple-800' },
-  institutional: { label: 'Institutionnel',      color: 'bg-gold-100 text-gold-800' },
-}
-
-const PLAN_FEATURES: Record<string, string[]> = {
-  free:          ['settings.plan.features.free_1', 'settings.plan.features.free_2', 'settings.plan.features.free_3', 'settings.plan.features.free_4'],
-  sme:           ['settings.plan.features.sme_1', 'settings.plan.features.sme_2', 'settings.plan.features.sme_3', 'settings.plan.features.sme_4', 'settings.plan.features.sme_5'],
-  enterprise:    ['settings.plan.features.enterprise_1', 'settings.plan.features.enterprise_2', 'settings.plan.features.enterprise_3', 'settings.plan.features.enterprise_4', 'settings.plan.features.enterprise_5', 'settings.plan.features.enterprise_6', 'settings.plan.features.enterprise_7'],
-  institutional: ['settings.plan.features.institutional_1', 'settings.plan.features.institutional_2', 'settings.plan.features.institutional_3', 'settings.plan.features.institutional_4'],
+const PLAN_BADGE_COLORS: Record<string, string> = {
+  free: 'bg-gray-100 text-gray-700',
+  sme: 'bg-cemac-100 text-cemac-800',
+  enterprise: 'bg-purple-100 text-purple-800',
+  institutional: 'bg-gold-100 text-gold-800',
 }
 
 // ─── Notification preferences state ─────────────────────────────────────────
@@ -119,8 +106,7 @@ export function SettingsPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('checkout') === 'success') {
-      const plan = params.get('plan') as keyof typeof PLAN_DISPLAY_NAMES | null
-      const planLabel = plan ? (PLAN_DISPLAY_NAMES[plan] ?? plan) : PLAN_DISPLAY_NAMES.sme
+      const planLabel = params.get('plan') ?? 'sme'
       toast.success(t('settings.toasts.subscription_success', { plan: planLabel }))
       // Clean URL without reload
       window.history.replaceState({}, '', window.location.pathname)
@@ -148,6 +134,7 @@ export function SettingsPage() {
             {TABS.map(({ id, label, icon: Icon }) => (
               <li key={id}>
                 <button
+                  type="button"
                   onClick={() => setActiveTab(id)}
                   className={cn(
                     'w-full flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition-all',
@@ -597,6 +584,7 @@ function NotificationsTab() {
                 {/* Toggle switch */}
                 <button
                   type="button"
+                  aria-label={label}
                   onClick={() => toggle(key)}
                   className={cn(
                     'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none',
@@ -627,11 +615,47 @@ function NotificationsTab() {
 
 // ─── Plan Tab ───────────────────────────────────────────────────────────────────────────────
 function PlanTab() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const entreprise = useAuthStore((s) => s.entreprise)
-  const currentPlan = (entreprise?.subscription_plan ?? 'free') as keyof typeof PLAN_LABELS
-  const planInfo = PLAN_LABELS[currentPlan] ?? PLAN_LABELS.free
-  const featureKeys = PLAN_FEATURES[currentPlan] ?? PLAN_FEATURES.free
+  const currentPlan = entreprise?.subscription_plan ?? 'free'
+  const locale = (i18n.resolvedLanguage ?? i18n.language).toLowerCase().startsWith('en') ? 'en' : 'fr'
+  const pricing = usePricing(locale)
+  const currentPlanInfo = findPricingPlan(pricing.data.plans, currentPlan)
+  const upgradePlans = getUpgradePlans(pricing.data.plans)
+
+  if (pricing.loading) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-sm text-muted-foreground">
+          Chargement des offres…
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (pricing.error) {
+    return (
+      <Card className="border-red-200 bg-red-50/40">
+        <CardContent role="alert" className="py-10 text-center">
+          <p className="font-semibold text-red-800">Impossible de charger les offres.</p>
+          <p className="mt-1 text-xs text-red-700">{pricing.error.message}</p>
+          <Button type="button" variant="outline" className="mt-4" onClick={() => void pricing.refetch()}>
+            Réessayer
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!currentPlanInfo) {
+    return (
+      <Card className="border-amber-200 bg-amber-50/40">
+        <CardContent role="alert" className="py-10 text-center text-sm text-amber-800">
+          Les informations de votre abonnement ne sont pas publiées.
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -643,8 +667,11 @@ function PlanTab() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <span className={cn('px-3 py-1 rounded-full text-sm font-semibold', planInfo.color)}>
-                {planInfo.label}
+              <span className={cn(
+                'px-3 py-1 rounded-full text-sm font-semibold',
+                PLAN_BADGE_COLORS[currentPlan] ?? PLAN_BADGE_COLORS.free,
+              )}>
+                {currentPlanInfo.name}
               </span>
             </div>
             {currentPlan !== 'institutional' && (
@@ -657,10 +684,10 @@ function PlanTab() {
           <div>
             <p className="text-sm font-medium text-gray-700 mb-2">{t('settings.plan.included_features')}</p>
             <ul className="space-y-1.5">
-              {featureKeys.map((featureKey) => (
-                <li key={featureKey} className="flex items-center gap-2 text-sm text-gray-700">
+              {currentPlanInfo.features.filter((feature) => feature.included).map((feature) => (
+                <li key={feature.id} className="flex items-center gap-2 text-sm text-gray-700">
                   <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                  {t(featureKey)}
+                  {feature.label}
                 </li>
               ))}
             </ul>
@@ -673,7 +700,7 @@ function PlanTab() {
         <>
           {/* Offers */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {SETTINGS_UPGRADE_PLANS.map((plan) => (
+            {upgradePlans.map((plan) => (
               <Card key={plan.id} className="relative border-cemac-200">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">

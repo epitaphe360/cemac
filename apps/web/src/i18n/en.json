@@ -1028,12 +1028,7 @@
       "suggestions_title":  "Frequently asked questions",
       "greeting":           "Hello! I'm the CEMAC INTEGRA AI assistant. Ask me a question about origin rules, ZLECAF, certifications or commodity prices.",
       "welcome_message":    "Hello! I'm the CEMAC INTEGRA AI assistant. Ask me a question about origin rules, ZLECAF, certifications or commodity prices.",
-      "reset_message":      "Conversation reset. How can I help you?",
-      "suggestion_1":       "What are the CEMAC origin thresholds?",
-      "suggestion_2":       "How to obtain a EUR.1 certificate?",
-      "suggestion_3":       "What is the AfCFTA?",
-      "suggestion_4":       "What are the TEC CEMAC customs duties?",
-      "suggestion_5":       "Current commodity prices"
+      "reset_message":      "Conversation reset. How can I help you?"
     }
   },
   "common": {

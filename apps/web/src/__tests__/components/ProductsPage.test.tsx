@@ -4,6 +4,15 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { ProductsPage } from '@/pages/products/ProductsPage'
 
+vi.mock('@/hooks/use-cms', () => ({
+  useProductCategories: () => ({
+    data: [{ id: 'cat-1', slug: 'agri-food', label: 'Agro-alimentaire', sortOrder: 10 }],
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}))
+
 // ── Supabase mock ──────────────────────────────────────────────────────────
 const MOCK_PRODUCTS = [
   {
@@ -134,5 +143,12 @@ describe('ProductsPage — add modal', () => {
     await user.click(closeBtn)
     // Modal heading should be gone
     expect(screen.queryByText(/nouveau produit/i, { selector: 'h2, h3, [role="heading"]' })).not.toBeInTheDocument()
+  })
+
+  it('loads product categories from the CMS', async () => {
+    renderProducts()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /nouveau produit/i }))
+    expect(await screen.findByRole('option', { name: 'Agro-alimentaire' })).toBeInTheDocument()
   })
 })

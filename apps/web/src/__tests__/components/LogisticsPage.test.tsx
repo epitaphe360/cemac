@@ -4,6 +4,55 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { LogisticsPage } from '@/pages/logistics/LogisticsPage'
 
+vi.mock('@/hooks/use-cms', () => ({
+  useSiteSetting: () => ({
+    data: {
+      key: 'logistics.origin_rules',
+      value: { cemac: { threshold: 40, label: 'CEMAC', agreement: 'TEC CEMAC' } },
+      description: null,
+      updatedAt: '2026-01-01T00:00:00Z',
+    },
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+  useContentBlocks: () => ({
+    data: [
+      {
+        id: 'overview',
+        page: 'logistics',
+        section: 'eur1',
+        key: 'overview',
+        locale: 'fr',
+        content: {
+          title: 'Certificat de circulation EUR.1',
+          description: 'Documentation EUR.1 depuis le CMS.',
+          processing_time: '3 – 5 jours ouvrés',
+          validity: '10 mois',
+          disclaimer: 'Projet non officiel.',
+        },
+        mediaUrl: null,
+        sortOrder: 10,
+        publishedAt: null,
+      },
+      {
+        id: 'documents',
+        page: 'logistics',
+        section: 'eur1',
+        key: 'required-documents',
+        locale: 'fr',
+        content: { items: ['Facture commerciale'] },
+        mediaUrl: null,
+        sortOrder: 20,
+        publishedAt: null,
+      },
+    ],
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}))
+
 // ── Mock jsPDF (heavy PDF lib) ─────────────────────────────────────────────
 vi.mock('jspdf', () => ({
   jsPDF: vi.fn().mockImplementation(() => ({
@@ -86,6 +135,13 @@ describe('LogisticsPage — calculator tab', () => {
     await user.click(await screen.findByRole('button', { name: /règles d'origine/i }))
     expect(await screen.findByRole('button', { name: /calculer/i })).toBeInTheDocument()
   })
+
+  it('loads origin rules from CMS settings', async () => {
+    renderLogistics()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /règles d'origine/i }))
+    expect(await screen.findByRole('option', { name: /CEMAC.*40%.*TEC CEMAC/i })).toBeInTheDocument()
+  })
 })
 
 describe('LogisticsPage — EUR.1 tab', () => {
@@ -97,6 +153,7 @@ describe('LogisticsPage — EUR.1 tab', () => {
     const eur1Tab = await screen.findByRole('button', { name: /eur\.1/i })
     await user.click(eur1Tab)
     expect(await screen.findByText(/demande de certificat eur\.1/i)).toBeInTheDocument()
+    expect(await screen.findByText('Documentation EUR.1 depuis le CMS.')).toBeInTheDocument()
   })
 })
 

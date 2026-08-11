@@ -8,12 +8,13 @@ import { Mail, Lock, User, Phone, Building2, Globe, Eye, EyeOff } from 'lucide-r
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth.store'
+import { usePricing } from '@/hooks/use-cms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CEMAC_COUNTRIES } from '@/lib/constants'
-import { PUBLIC_PRICING_PLANS } from '@/lib/pricing'
+import { findPricingPlan, isPublicPlanId } from '@/lib/pricing'
 
 const schema = z.object({
   email:           z.string().email('Email invalide'),
@@ -28,11 +29,15 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export function RegisterPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const requestedPlan = searchParams.get('plan')
-  const selectedPlan = PUBLIC_PRICING_PLANS.find((plan) => plan.id === requestedPlan && plan.id !== 'free')
+  const locale = (i18n.resolvedLanguage ?? i18n.language).toLowerCase().startsWith('en') ? 'en' : 'fr'
+  const pricing = usePricing(locale)
+  const requestedPaidPlan = isPublicPlanId(requestedPlan) && requestedPlan !== 'free'
+  const selectedPlan = requestedPaidPlan ? findPricingPlan(pricing.data.plans, requestedPlan) : null
+  const requestedPlanUnavailable = Boolean(requestedPlan && requestedPlan !== 'free' && !pricing.loading && !pricing.error && !selectedPlan)
   const initialize = useAuthStore((s) => s.initialize)
   const [showPassword, setShowPassword] = useState(false)
   const [step, setStep] = useState<1 | 2>(1)
@@ -46,6 +51,11 @@ export function RegisterPage() {
   }
 
   const onSubmit = async (data: FormData) => {
+    if (requestedPlan && requestedPlan !== 'free' && (pricing.loading || pricing.error || !selectedPlan)) {
+      toast.error('Impossible de valider l’offre demandée. Réessayez avant de créer le compte.')
+      return
+    }
+
     // 1. Créer le compte Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
@@ -101,6 +111,22 @@ export function RegisterPage() {
           </div>
           <h1 className="text-3xl font-black tracking-tight text-gray-900">CEMAC INTEGRA</h1>
           <p className="text-sm text-gray-500 mt-2">{t('auth.create_company_account')}</p>
+          {requestedPlan && requestedPlan !== 'free' && pricing.loading && (
+            <output className="block text-xs font-medium text-gray-600 mt-2">Chargement de l’offre demandée…</output>
+          )}
+          {requestedPlan && requestedPlan !== 'free' && pricing.error && (
+            <div role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+              <p>Impossible de charger l’offre demandée.</p>
+              <button type="button" onClick={() => void pricing.refetch()} className="mt-1 font-semibold underline">
+                Réessayer
+              </button>
+            </div>
+          )}
+          {requestedPlanUnavailable && (
+            <p role="alert" className="text-xs font-medium text-amber-700 mt-2">
+              L’offre demandée n’est pas disponible.
+            </p>
+          )}
           {selectedPlan && (
             <p className="text-xs font-medium text-cemac-700 mt-2">
               Offre demandée : {selectedPlan.name} — activation après validation commerciale
@@ -241,7 +267,12 @@ export function RegisterPage() {
                     <Button type="button" variant="outline" onClick={() => setStep(1)} className="flex-1">
                       ← {t('common.back')}
                     </Button>
-                    <Button type="submit" loading={isSubmitting} className="flex-1">
+                    <Button
+                      type="submit"
+                      loading={isSubmitting}
+                      disabled={Boolean(requestedPlan && requestedPlan !== 'free' && (pricing.loading || pricing.error || !selectedPlan))}
+                      className="flex-1"
+                    >
                       {isSubmitting ? t('auth.creating_account') : t('auth.create_account_submit')}
                     </Button>
                   </div>

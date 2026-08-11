@@ -4,6 +4,40 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { MarketIntelligencePage } from '@/pages/market-intelligence/MarketIntelligencePage'
 
+const CMS_DATA = {
+  commodities: [{
+    id: 'commodity-1',
+    key: 'raw-cocoa',
+    worldBankIndicator: 'PCOCOA',
+    name: 'Cacao brut',
+    countryCode: 'CM',
+    xafUnit: 'tonne',
+    category: 'Agricole',
+    usdUnit: 'metric_ton',
+    usdPrice: 8900,
+    sourceUrl: null,
+    sortOrder: 10,
+  }],
+  knowledge: [{
+    id: 'knowledge-1',
+    slug: 'origin-rules',
+    patterns: ['seuil.*origine', 'règle.*origine'],
+    suggestion: "Quels sont les seuils d'origine CEMAC ?",
+    answer: 'Réponse CMS sur les seuils d’origine.',
+    tags: ['origin'],
+    sortOrder: 10,
+  }],
+}
+
+vi.mock('@/hooks/use-cms', () => ({
+  useCommoditiesAndKnowledge: () => ({
+    data: CMS_DATA,
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}))
+
 // ── Mock supabase ──────────────────────────────────────────────────────────
 // Build a query mock that is also a real Promise (needed for Promise.all)
 function makeQuery(resolved = { data: [], count: 0, error: null }) {
@@ -67,9 +101,8 @@ describe('MarketIntelligencePage — prices tab', () => {
     expect(await screen.findAllByText(/prix/i)).toBeTruthy()
   })
 
-  it('renders static commodity rows (fallback mode)', async () => {
+  it('renders CMS commodity rows when market APIs are offline', async () => {
     renderMI()
-    // Cacao should appear even in offline/fallback mode
     expect(await screen.findByText(/cacao brut/i)).toBeInTheDocument()
   })
 })

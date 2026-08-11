@@ -15,15 +15,42 @@ export type LogisticsAlert = Database['public']['Tables']['logistics_alerts']['R
 export type Invoice = Database['public']['Tables']['invoices']['Row']
 export type Notification = Database['public']['Tables']['notifications']['Row']
 export type ContactRequest = Database['public']['Tables']['contact_requests']['Row']
+export type ApiConfig = Database['public']['Tables']['api_configs']['Row']
+export type StripeWebhookEvent = Database['public']['Tables']['stripe_webhook_events']['Row']
+
+// CMS and mutable reference data
+export type SiteSetting = Database['public']['Tables']['site_settings']['Row']
+export type ContentBlock = Database['public']['Tables']['content_blocks']['Row']
+export type TeamMember = Database['public']['Tables']['team_members']['Row']
+export type Partner = Database['public']['Tables']['partners']['Row']
+export type Milestone = Database['public']['Tables']['milestones']['Row']
+export type MarketingStat = Database['public']['Tables']['marketing_stats']['Row']
+export type PricingPlan = Database['public']['Tables']['pricing_plans']['Row']
+export type PricingPlanFeature = Database['public']['Tables']['pricing_plan_features']['Row']
+export type PricingFaq = Database['public']['Tables']['pricing_faqs']['Row']
+export type ContactOffice = Database['public']['Tables']['contact_offices']['Row']
+export type ContactReason = Database['public']['Tables']['contact_reasons']['Row']
+export type CommodityBaseline = Database['public']['Tables']['commodity_baselines']['Row']
+export type AssistantKnowledge = Database['public']['Tables']['assistant_knowledge']['Row']
+export type LegalDocument = Database['public']['Tables']['legal_documents']['Row']
+export type ProductCategory = Database['public']['Tables']['product_categories']['Row']
+export type TaxRate = Database['public']['Tables']['tax_rates']['Row']
+export type PlatformStats = Database['public']['Views']['platform_stats']['Row']
+export type ApiConfigMetadata = Database['public']['Views']['api_config_metadata']['Row']
 
 // Insert types
 export type InsertEntreprise = Database['public']['Tables']['entreprises']['Insert']
 export type InsertCertification = Database['public']['Tables']['certifications']['Insert']
 export type InsertProduit = Database['public']['Tables']['produits']['Insert']
+export type InsertContentBlock = Database['public']['Tables']['content_blocks']['Insert']
+export type InsertPricingPlan = Database['public']['Tables']['pricing_plans']['Insert']
+export type InsertLegalDocument = Database['public']['Tables']['legal_documents']['Insert']
 
 // Update types
 export type UpdateEntreprise = Database['public']['Tables']['entreprises']['Update']
 export type UpdateCertification = Database['public']['Tables']['certifications']['Update']
+export type UpdateContentBlock = Database['public']['Tables']['content_blocks']['Update']
+export type UpdatePricingPlan = Database['public']['Tables']['pricing_plans']['Update']
 
 // Joined types
 export type CertificationWithEntreprise = Certification & {

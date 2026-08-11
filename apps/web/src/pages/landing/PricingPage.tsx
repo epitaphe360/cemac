@@ -1,58 +1,36 @@
 import { Link } from 'react-router-dom'
 import { CheckCircle2, X, Zap, ArrowRight, HelpCircle } from 'lucide-react'
 import { useState } from 'react'
-import { PUBLIC_PRICING_PLANS, formatPlanPrice } from '@/lib/pricing'
+import { useTranslation } from 'react-i18next'
+import { usePricing } from '@/hooks/use-cms'
+import { formatPlanPrice } from '@/lib/pricing'
 
-const plans = [
-  {
-    ...PUBLIC_PRICING_PLANS[0],
-    price: { monthly: PUBLIC_PRICING_PLANS[0].monthlyPrice, yearly: PUBLIC_PRICING_PLANS[0].yearlyPrice },
+const PLAN_STYLES: Record<string, { color: string; headerBg: string; cta: string }> = {
+  free: {
     color: 'border-gray-200',
     headerBg: 'bg-gray-50',
-    cta: { label: 'Commencer gratuitement', href: '/auth/register', style: 'border border-cemac-600 text-cemac-700 hover:bg-cemac-50' },
+    cta: 'border border-cemac-600 text-cemac-700 hover:bg-cemac-50',
   },
-  {
-    ...PUBLIC_PRICING_PLANS[1],
-    price: { monthly: PUBLIC_PRICING_PLANS[1].monthlyPrice, yearly: PUBLIC_PRICING_PLANS[1].yearlyPrice },
+  sme: {
     color: 'border-cemac-500 ring-2 ring-cemac-500',
     headerBg: 'bg-gradient-to-r from-cemac-700 to-cemac-800',
-    cta: { label: 'Commencer en Pro', href: '/auth/register?plan=sme', style: 'bg-cemac-700 hover:bg-cemac-800 text-white' },
+    cta: 'bg-cemac-700 hover:bg-cemac-800 text-white',
   },
-  {
-    ...PUBLIC_PRICING_PLANS[2],
-    price: { monthly: PUBLIC_PRICING_PLANS[2].monthlyPrice, yearly: PUBLIC_PRICING_PLANS[2].yearlyPrice },
+  enterprise: {
     color: 'border-gray-200',
     headerBg: 'bg-gradient-to-r from-cemac-950 to-cemac-900',
-    cta: { label: 'Contacter les ventes', href: '/contact', style: 'bg-gray-900 hover:bg-black text-white' },
+    cta: 'bg-gray-900 hover:bg-black text-white',
   },
-]
-
-const faqs = [
-  {
-    q: 'Puis-je changer de plan à tout moment ?',
-    a: 'Oui, vous pouvez passer à un plan supérieur ou inférieur à tout moment depuis les paramètres de votre compte. Le changement prend effet immédiatement.',
-  },
-  {
-    q: 'Comment se passe le paiement ?',
-    a: 'Le paiement en libre-service n’est pas encore activé. Contactez notre équipe commerciale pour connaître les modalités disponibles et recevoir une facture après validation.',
-  },
-  {
-    q: 'Y a-t-il une période d\'essai pour les plans payants ?',
-    a: 'Non, il n y a pas de période d essai automatique active pour le moment. L activation se fait après souscription.',
-  },
-  {
-    q: 'Les certifications émises sont-elles reconnues officiellement ?',
-    a: 'Oui, CEMAC INTEGRA est partenaire des chambres de commerce CEMAC. Les certifications émises via la plateforme ont la même valeur légale que les certifications papier traditionnelles.',
-  },
-  {
-    q: 'Que se passe-t-il à l\'expiration de mon abonnement ?',
-    a: 'Vos données et certifications restent accessibles. Vous passez automatiquement au plan Starter (2 certifications/mois). Aucune donnée n\'est supprimée.',
-  },
-]
+}
 
 export function PricingPage() {
   const [yearly, setYearly] = useState(false)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const { i18n } = useTranslation()
+  const locale = (i18n.resolvedLanguage ?? i18n.language).toLowerCase().startsWith('en') ? 'en' : 'fr'
+  const { data, loading, error, refetch } = usePricing(locale)
+  const plans = data.plans.filter((plan) => plan.id !== 'institutional')
+  const institutionalPlan = data.plans.find((plan) => plan.id === 'institutional')
 
   return (
     <div className="pt-20">
@@ -77,6 +55,7 @@ export function PricingPage() {
           {/* Toggle */}
           <div className="inline-flex items-center gap-3 bg-white/10 rounded-full p-1">
             <button
+              type="button"
               className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
                 !yearly ? 'bg-white text-cemac-900 shadow' : 'text-cemac-300 hover:text-white'
               }`}
@@ -85,12 +64,13 @@ export function PricingPage() {
               Mensuel
             </button>
             <button
+              type="button"
               className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all ${
                 yearly ? 'bg-white text-cemac-900 shadow' : 'text-cemac-300 hover:text-white'
               }`}
               onClick={() => setYearly(true)}
             >
-              Annuel
+              <span>Annuel</span>
               <span className="ml-2 px-2 py-0.5 bg-gold-800 text-white text-xs rounded-full">
                 Tarif annuel
               </span>
@@ -102,15 +82,36 @@ export function PricingPage() {
       {/* Plans */}
       <section className="py-16 bg-transparent">
         <div className="max-w-6xl mx-auto px-6">
+          {loading && (
+            <div className="rounded-2xl border border-cemac-100 bg-white p-10 text-center text-sm text-gray-600">
+              Chargement des tarifs…
+            </div>
+          )}
+          {!loading && error && (
+            <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
+              <p className="font-semibold text-red-800">Impossible de charger les tarifs.</p>
+              <p className="mt-1 text-sm text-red-700">{error.message}</p>
+              <button type="button" onClick={() => void refetch()} className="mt-4 rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white">
+                Réessayer
+              </button>
+            </div>
+          )}
+          {!loading && !error && plans.length === 0 && (
+            <output className="block rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center text-amber-800">
+              Aucun tarif n’est actuellement publié.
+            </output>
+          )}
+          {!loading && !error && plans.length > 0 && (
           <div className="grid md:grid-cols-3 gap-6 -mt-8">
             {plans.map((plan) => {
-              const price = yearly ? plan.price.yearly : plan.price.monthly
+              const price = yearly ? plan.yearlyPrice : plan.monthlyPrice
               const period = yearly ? '/ an' : '/ mois'
+              const style = PLAN_STYLES[plan.id] ?? PLAN_STYLES.enterprise
 
               return (
                 <div
                   key={plan.id}
-                  className={`relative bg-white/92 backdrop-blur-sm rounded-3xl overflow-hidden border-2 ${plan.color} shadow-[0_18px_45px_rgba(10,45,39,0.1)] flex flex-col transition-transform duration-300 hover:-translate-y-1`}
+                  className={`relative bg-white/92 backdrop-blur-sm rounded-3xl overflow-hidden border-2 ${style.color} shadow-[0_18px_45px_rgba(10,45,39,0.1)] flex flex-col transition-transform duration-300 hover:-translate-y-1`}
                 >
                   {plan.badge && (
                     <div className="absolute top-4 right-4 px-3 py-1 bg-gold-800 text-white text-xs font-bold rounded-full shadow">
@@ -119,7 +120,7 @@ export function PricingPage() {
                   )}
 
                   {/* Header */}
-                  <div className={`${plan.headerBg} p-6`}>
+                  <div className={`${style.headerBg} p-6`}>
                     <h3 className={`text-xl font-black mb-1 ${plan.id === 'free' ? 'text-gray-900' : 'text-white'}`}>
                       {plan.name}
                     </h3>
@@ -127,8 +128,8 @@ export function PricingPage() {
                       {plan.description}
                     </p>
                     <div className={plan.id === 'free' ? 'text-gray-900' : 'text-white'}>
-                      <span className="text-4xl font-black">{formatPlanPrice(price, yearly ? 'yearly' : 'monthly').replace(` / ${yearly ? 'an' : 'mois'}`, '')}</span>
-                      {price > 0 && <span className={`text-sm ml-1 ${plan.id === 'free' ? 'text-gray-400' : 'text-white/60'}`}>{period}</span>}
+                      <span className="text-4xl font-black">{formatPlanPrice(price, yearly ? 'yearly' : 'monthly', plan.currency).replace(` / ${yearly ? 'an' : 'mois'}`, '')}</span>
+                      {price !== null && price > 0 && <span className={`text-sm ml-1 ${plan.id === 'free' ? 'text-gray-400' : 'text-white/60'}`}>{period}</span>}
                     </div>
                   </div>
 
@@ -146,35 +147,41 @@ export function PricingPage() {
                         </li>
                       ))}
                     </ul>
-                    <Link
-                      to={plan.cta.href}
-                      className={`w-full py-3.5 px-6 rounded-xl font-bold text-center transition-all flex items-center justify-center gap-2 ${plan.cta.style}`}
-                    >
-                      {plan.cta.label}
-                      <ArrowRight size={16} />
-                    </Link>
+                    {plan.cta.href && plan.cta.label ? (
+                      <Link
+                        to={plan.cta.href}
+                        className={`w-full py-3.5 px-6 rounded-xl font-bold text-center transition-all flex items-center justify-center gap-2 ${style.cta}`}
+                      >
+                        {plan.cta.label}
+                        <ArrowRight size={16} />
+                      </Link>
+                    ) : (
+                      <p className="text-center text-sm text-amber-700">Souscription temporairement indisponible.</p>
+                    )}
                   </div>
                 </div>
               )
             })}
           </div>
+          )}
 
           {/* Institution/Gov plan */}
+          {!loading && !error && institutionalPlan && (
           <div className="mt-8 bg-gradient-to-r from-cemac-900 via-cemac-800 to-cemac-950 rounded-3xl p-8 text-white flex flex-col lg:flex-row items-center gap-6 justify-between shadow-[0_18px_45px_rgba(10,45,39,0.22)]">
             <div>
-              <h3 className="text-xl font-black mb-2">Plan institutionnel & réseaux consulaires</h3>
+              <h3 className="text-xl font-black mb-2">{institutionalPlan.name}</h3>
               <p className="text-cemac-300 text-sm max-w-lg">
-                Pour les organisations d'appui au commerce, chambres consulaires et structures régionales.
-                Déploiement dédié, gouvernance sur mesure et accompagnement au changement.
+                {institutionalPlan.description}
               </p>
             </div>
-            <Link
-              to="/contact"
+            {institutionalPlan.cta.href && institutionalPlan.cta.label && <Link
+              to={institutionalPlan.cta.href}
               className="flex-shrink-0 px-8 py-3.5 bg-gold-800 hover:bg-gold-900 text-white font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg"
             >
-              Nous contacter <ArrowRight size={16} />
-            </Link>
+              {institutionalPlan.cta.label} <ArrowRight size={16} />
+            </Link>}
           </div>
+          )}
         </div>
       </section>
 
@@ -188,20 +195,21 @@ export function PricingPage() {
             <h2 className="text-3xl font-black text-gray-900">Questions fréquentes</h2>
           </div>
           <div className="space-y-3">
-            {faqs.map((faq, i) => (
-              <div key={i} className="border border-white rounded-2xl overflow-hidden bg-white/90 shadow-sm">
+            {!loading && !error && data.faqs.map((faq, i) => (
+              <div key={faq.id} className="border border-white rounded-2xl overflow-hidden bg-white/90 shadow-sm">
                 <button
+                  type="button"
                   className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                 >
-                  <span className="font-semibold text-gray-900">{faq.q}</span>
+                  <span className="font-semibold text-gray-900">{faq.question}</span>
                   <span className={`text-cemac-600 font-bold text-xl transition-transform ${openFaq === i ? 'rotate-45' : ''}`}>
                     +
                   </span>
                 </button>
                 {openFaq === i && (
                   <div className="px-6 pb-4 text-gray-600 text-sm leading-relaxed border-t border-gray-100">
-                    {faq.a}
+                    {faq.answer}
                   </div>
                 )}
               </div>

@@ -20,6 +20,15 @@ vi.mock('@/stores/auth.store', () => ({
     selector({ initialize: mockInitialize }),
 }))
 
+vi.mock('@/hooks/use-cms', () => ({
+  usePricing: () => ({
+    data: { plans: [], faqs: [] },
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}))
+
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: {

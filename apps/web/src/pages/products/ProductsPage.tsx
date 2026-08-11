@@ -1,4 +1,4 @@
-import { LoadingSpinner, PageLoader, LoadingTableFull, LoadingCard } from "@/components/shared/LoadingSpinner";
+import { PageLoader } from "@/components/shared/LoadingSpinner";
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { Plus, Pencil, Trash2, Eye, EyeOff, Package, Upload, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -9,22 +9,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { useTranslation } from 'react-i18next'
+import { useProductCategories } from '@/hooks/use-cms'
+import { getPrimaryLanguage } from '@/lib/i18n-utils'
+import type { CmsLocale } from '@/lib/cms-types'
 
 import { formatCurrency } from '@/lib/utils'
 import { CEMAC_COUNTRIES } from '@/lib/constants'
 import toast from 'react-hot-toast'
 import type { Produit } from '@/types'
 
-const CATEGORIES = [
-  'Agro-alimentaire',
-  'Bois & Forêt',
-  'Cosmétique & Bien-être',
-  'Pêche & Aquaculture',
-  'Textile & Fibre',
-  'Chimie & Agroforesterie',
-  'Artisanat & Art',
-  'Autre',
-]
 const CURRENCIES = ['XAF', 'EUR', 'USD', 'XOF']
 
 interface ProductForm {
@@ -58,7 +51,13 @@ const emptyForm = (defaultPays = ''): ProductForm => ({
 })
 
 export function ProductsPage() {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
+  const locale = getPrimaryLanguage(i18n.resolvedLanguage ?? i18n.language) as CmsLocale
+  const {
+    data: productCategories,
+    loading: categoriesLoading,
+    error: categoriesError,
+  } = useProductCategories(locale)
   const entreprise = useAuthStore((s) => s.entreprise)
   const profile = useAuthStore((s) => s.profile)
   const [products, setProducts] = useState<Produit[]>([])
@@ -213,11 +212,22 @@ export function ProductsPage() {
             {entreprise.raison_sociale} · {t('products.subtitle')}
           </p>
         </div>
-        <Button onClick={openAdd} className="bg-cemac-700 hover:bg-cemac-800">
+        <Button
+          onClick={openAdd}
+          className="bg-cemac-700 hover:bg-cemac-800"
+          disabled={categoriesLoading || Boolean(categoriesError) || productCategories.length === 0}
+        >
           <Plus className="h-4 w-4" />
           {t('products.new')}
         </Button>
       </div>
+      {categoriesLoading ? (
+        <p className="text-sm text-muted-foreground">Chargement des catégories produit…</p>
+      ) : categoriesError ? (
+        <p role="alert" className="text-sm text-red-600">Impossible de charger les catégories produit.</p>
+      ) : productCategories.length === 0 ? (
+        <p role="status" className="text-sm text-amber-700">Catégories produit indisponibles.</p>
+      ) : null}
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -391,7 +401,11 @@ export function ProductsPage() {
                     className="mt-1 h-9 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-1 focus:ring-cemac-600"
                   >
                     <option value="">{t('products.select_option')}</option>
-                    {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    {productCategories.map((category) => (
+                      <option key={category.id} value={category.label ?? category.slug}>
+                        {category.label ?? category.slug}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

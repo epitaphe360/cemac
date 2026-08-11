@@ -1028,12 +1028,7 @@
       "suggestions_title":  "Questions fréquentes",
       "greeting":           "Bonjour ! Je suis l'assistant IA CEMAC INTEGRA. Posez-moi une question sur les règles d'origine, la ZLECAF, les certifications ou les prix des matières premières.",
       "welcome_message":    "Bonjour ! Je suis l'assistant IA CEMAC INTEGRA. Posez-moi une question sur les règles d'origine, la ZLECAF, les certifications ou les prix des matières premières.",
-      "reset_message":      "Conversation réinitialisée. Comment puis-je vous aider ?",
-      "suggestion_1":       "Quels sont les seuils d'origine CEMAC ?",
-      "suggestion_2":       "Comment obtenir un certificat EUR.1 ?",
-      "suggestion_3":       "Qu'est-ce que la ZLECAF ?",
-      "suggestion_4":       "Quels sont les droits de douane TEC CEMAC ?",
-      "suggestion_5":       "Prix actuels des matières premières"
+      "reset_message":      "Conversation réinitialisée. Comment puis-je vous aider ?"
     }
   },
   "common": {

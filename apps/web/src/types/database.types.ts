@@ -70,6 +70,8 @@ export interface Database {
           subscription_plan: string
           is_verified: boolean
           chambre_id: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
           created_at: string
           updated_at: string
         }
@@ -90,6 +92,9 @@ export interface Database {
           logo_url?: string | null
           subscription_plan?: string
           is_verified?: boolean
+          chambre_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -108,6 +113,9 @@ export interface Database {
           logo_url?: string | null
           subscription_plan?: string
           is_verified?: boolean
+          chambre_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -340,6 +348,7 @@ export interface Database {
           telephone: string | null
           agent_count: number
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
@@ -350,6 +359,7 @@ export interface Database {
           telephone?: string | null
           agent_count?: number
           created_at?: string
+          updated_at?: string
         }
         Update: {
           nom?: string
@@ -427,6 +437,7 @@ export interface Database {
           message: string | null
           body: string | null
           read: boolean
+          certification_id: string | null
           created_at: string
         }
         Insert: {
@@ -437,6 +448,7 @@ export interface Database {
           message?: string | null
           body?: string | null
           read?: boolean
+          certification_id?: string | null
           created_at?: string
         }
         Update: {
@@ -444,8 +456,17 @@ export interface Database {
           message?: string | null
           body?: string | null
           read?: boolean
+          certification_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: 'notifications_certification_id_fkey'
+            columns: ['certification_id']
+            isOneToOne: false
+            referencedRelation: 'certifications'
+            referencedColumns: ['id']
+          },
+        ]
       }
       contact_requests: {
         Row: {
@@ -565,11 +586,174 @@ export interface Database {
         }
         Relationships: []
       }
+      stripe_webhook_events: {
+        Row: {
+          event_id: string
+          event_type: string
+          stripe_object_id: string | null
+          user_id: string | null
+          entreprise_id: string | null
+          processed_at: string
+        }
+        Insert: {
+          event_id: string
+          event_type: string
+          stripe_object_id?: string | null
+          user_id?: string | null
+          entreprise_id?: string | null
+          processed_at?: string
+        }
+        Update: { [_ in never]: never }
+        Relationships: [
+          {
+            foreignKeyName: 'stripe_webhook_events_entreprise_id_fkey'
+            columns: ['entreprise_id']
+            isOneToOne: false
+            referencedRelation: 'entreprises'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      site_settings: {
+        Row: { key: string; value: Json; description: string | null; is_public: boolean; created_at: string; updated_at: string }
+        Insert: { key: string; value?: Json; description?: string | null; is_public?: boolean; created_at?: string; updated_at?: string }
+        Update: { value?: Json; description?: string | null; is_public?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      content_blocks: {
+        Row: { id: string; page: string; section: string; key: string; locale: string; content: Json; media_url: string | null; sort_order: number; is_published: boolean; published_at: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; page: string; section: string; key: string; locale?: string; content?: Json; media_url?: string | null; sort_order?: number; is_published?: boolean; published_at?: string | null; created_at?: string; updated_at?: string }
+        Update: { page?: string; section?: string; key?: string; locale?: string; content?: Json; media_url?: string | null; sort_order?: number; is_published?: boolean; published_at?: string | null; updated_at?: string }
+        Relationships: []
+      }
+      team_members: {
+        Row: { id: string; slug: string; full_name: string; role: Json; country_code: string | null; country_label: Json; initials: string | null; photo_url: string | null; sort_order: number; is_published: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; slug: string; full_name: string; role: Json; country_code?: string | null; country_label?: Json; initials?: string | null; photo_url?: string | null; sort_order?: number; is_published?: boolean; created_at?: string; updated_at?: string }
+        Update: { slug?: string; full_name?: string; role?: Json; country_code?: string | null; country_label?: Json; initials?: string | null; photo_url?: string | null; sort_order?: number; is_published?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      partners: {
+        Row: { id: string; slug: string; name: string; description: Json; logo_url: string | null; website_url: string | null; sort_order: number; is_published: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; slug: string; name: string; description?: Json; logo_url?: string | null; website_url?: string | null; sort_order?: number; is_published?: boolean; created_at?: string; updated_at?: string }
+        Update: { slug?: string; name?: string; description?: Json; logo_url?: string | null; website_url?: string | null; sort_order?: number; is_published?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      milestones: {
+        Row: { id: string; slug: string; year: number; title: Json; description: Json; sort_order: number; is_published: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; slug: string; year: number; title?: Json; description: Json; sort_order?: number; is_published?: boolean; created_at?: string; updated_at?: string }
+        Update: { slug?: string; year?: number; title?: Json; description?: Json; sort_order?: number; is_published?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      marketing_stats: {
+        Row: { key: string; label: Json; display_value: Json; numeric_value: number | null; source: string | null; sort_order: number; is_published: boolean; created_at: string; updated_at: string }
+        Insert: { key: string; label: Json; display_value: Json; numeric_value?: number | null; source?: string | null; sort_order?: number; is_published?: boolean; created_at?: string; updated_at?: string }
+        Update: { label?: Json; display_value?: Json; numeric_value?: number | null; source?: string | null; sort_order?: number; is_published?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      pricing_plans: {
+        Row: { id: string; name: Json; description: Json; monthly_price: number | null; yearly_price: number | null; currency: string; badge: Json | null; cta: Json; sort_order: number; is_published: boolean; created_at: string; updated_at: string }
+        Insert: { id: string; name: Json; description: Json; monthly_price?: number | null; yearly_price?: number | null; currency?: string; badge?: Json | null; cta?: Json; sort_order?: number; is_published?: boolean; created_at?: string; updated_at?: string }
+        Update: { name?: Json; description?: Json; monthly_price?: number | null; yearly_price?: number | null; currency?: string; badge?: Json | null; cta?: Json; sort_order?: number; is_published?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      pricing_plan_features: {
+        Row: { id: string; plan_id: string; feature_key: string; label: Json; is_included: boolean; sort_order: number; created_at: string; updated_at: string }
+        Insert: { id?: string; plan_id: string; feature_key: string; label: Json; is_included?: boolean; sort_order?: number; created_at?: string; updated_at?: string }
+        Update: { plan_id?: string; feature_key?: string; label?: Json; is_included?: boolean; sort_order?: number; updated_at?: string }
+        Relationships: [
+          {
+            foreignKeyName: 'pricing_plan_features_plan_id_fkey'
+            columns: ['plan_id']
+            isOneToOne: false
+            referencedRelation: 'pricing_plans'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      pricing_faqs: {
+        Row: { id: string; slug: string; question: Json; answer: Json; sort_order: number; is_published: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; slug: string; question: Json; answer: Json; sort_order?: number; is_published?: boolean; created_at?: string; updated_at?: string }
+        Update: { slug?: string; question?: Json; answer?: Json; sort_order?: number; is_published?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      contact_offices: {
+        Row: { id: string; slug: string; country_code: string; country_name: Json; city: string; address: Json; phone: string | null; email: string | null; is_headquarters: boolean; sort_order: number; is_published: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; slug: string; country_code: string; country_name: Json; city: string; address: Json; phone?: string | null; email?: string | null; is_headquarters?: boolean; sort_order?: number; is_published?: boolean; created_at?: string; updated_at?: string }
+        Update: { slug?: string; country_code?: string; country_name?: Json; city?: string; address?: Json; phone?: string | null; email?: string | null; is_headquarters?: boolean; sort_order?: number; is_published?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      contact_reasons: {
+        Row: { id: string; slug: string; label: Json; sort_order: number; is_published: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; slug: string; label: Json; sort_order?: number; is_published?: boolean; created_at?: string; updated_at?: string }
+        Update: { slug?: string; label?: Json; sort_order?: number; is_published?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      commodity_baselines: {
+        Row: { id: string; key: string; world_bank_indicator: string | null; name: Json; country_code: string; xaf_unit: Json; category: Json; usd_unit: string; usd_price: number; source_url: string | null; sort_order: number; is_published: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; key: string; world_bank_indicator?: string | null; name: Json; country_code: string; xaf_unit: Json; category: Json; usd_unit: string; usd_price: number; source_url?: string | null; sort_order?: number; is_published?: boolean; created_at?: string; updated_at?: string }
+        Update: { key?: string; world_bank_indicator?: string | null; name?: Json; country_code?: string; xaf_unit?: Json; category?: Json; usd_unit?: string; usd_price?: number; source_url?: string | null; sort_order?: number; is_published?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      assistant_knowledge: {
+        Row: { id: string; slug: string; patterns: string[]; answer: Json; suggestion: Json; tags: string[]; sort_order: number; is_published: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; slug: string; patterns?: string[]; answer: Json; suggestion?: Json; tags?: string[]; sort_order?: number; is_published?: boolean; created_at?: string; updated_at?: string }
+        Update: { slug?: string; patterns?: string[]; answer?: Json; suggestion?: Json; tags?: string[]; sort_order?: number; is_published?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      legal_documents: {
+        Row: { id: string; slug: string; locale: string; title: string; sections: Json; effective_date: string; is_published: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; slug: string; locale: string; title: string; sections: Json; effective_date: string; is_published?: boolean; created_at?: string; updated_at?: string }
+        Update: { slug?: string; locale?: string; title?: string; sections?: Json; effective_date?: string; is_published?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      product_categories: {
+        Row: { id: string; slug: string; label: Json; sort_order: number; is_published: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; slug: string; label: Json; sort_order?: number; is_published?: boolean; created_at?: string; updated_at?: string }
+        Update: { slug?: string; label?: Json; sort_order?: number; is_published?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      tax_rates: {
+        Row: { country_code: string; country_name: Json; rate: number; effective_from: string; source: string | null; is_active: boolean; created_at: string; updated_at: string }
+        Insert: { country_code: string; country_name: Json; rate: number; effective_from: string; source?: string | null; is_active?: boolean; created_at?: string; updated_at?: string }
+        Update: { country_name?: Json; rate?: number; effective_from?: string; source?: string | null; is_active?: boolean; updated_at?: string }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      platform_stats: {
+        Row: {
+          verified_companies: number | null
+          approved_certifications: number | null
+          total_certifications: number | null
+          published_products: number | null
+          represented_countries: number | null
+          chambers: number | null
+          measured_at: string | null
+        }
+        Relationships: []
+      }
+      api_config_metadata: {
+        Row: {
+          id: string | null
+          key: string | null
+          name: string | null
+          category: string | null
+          is_active: boolean | null
+          metadata: Json | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      admin_set_subscription_plan: {
+        Args: {
+          target_entreprise_id: string
+          target_plan: string
+        }
+        Returns: Database['public']['Tables']['entreprises']['Row']
+      }
       admin_update_user_role: {
         Args: {
           target_user_id: string
@@ -585,6 +769,10 @@ export interface Database {
         Args: { certification_uuid: string }
         Returns: boolean
       }
+      can_manage_cms: {
+        Args: { resource_name: string }
+        Returns: boolean
+      }
       get_my_country: {
         Args: Record<PropertyKey, never>
         Returns: string | null
@@ -596,6 +784,19 @@ export interface Database {
       get_my_role: {
         Args: Record<PropertyKey, never>
         Returns: string | null
+      }
+      process_stripe_event: {
+        Args: {
+          p_event_id: string
+          p_event_type: string
+          p_stripe_object_id: string | null
+          p_user_id: string
+          p_entreprise_id: string
+          p_plan: string | null
+          p_stripe_customer_id: string | null
+          p_stripe_subscription_id: string | null
+        }
+        Returns: boolean
       }
     }
     Enums: {

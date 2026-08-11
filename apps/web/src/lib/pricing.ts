@@ -1,102 +1,66 @@
+import type { PricingPlanView } from './cms-types'
+
 export type PublicPlanId = 'free' | 'sme' | 'enterprise'
+export type BillingPeriod = 'monthly' | 'yearly'
 
-export interface PublicPlanFeature {
-  label: string
-  included: boolean
+export function isPublicPlanId(value: unknown): value is PublicPlanId {
+  return value === 'free' || value === 'sme' || value === 'enterprise'
 }
 
-export interface PublicPlanDefinition {
-  id: PublicPlanId
-  name: string
-  monthlyPrice: number
-  yearlyPrice: number
-  description: string
-  badge: string | null
-  features: PublicPlanFeature[]
+export function formatPlanPrice(
+  amount: number | null,
+  period: BillingPeriod = 'monthly',
+  currency = 'XAF',
+  locale = 'fr-FR',
+): string {
+  if (amount === null) return 'Sur devis'
+  if (amount === 0) return 'Gratuit'
+  return `${amount.toLocaleString(locale)} ${currency} / ${period === 'yearly' ? 'an' : 'mois'}`
 }
 
-export const PUBLIC_PRICING_PLANS: PublicPlanDefinition[] = [
-  {
-    id: 'free',
-    name: 'Starter',
-    monthlyPrice: 0,
-    yearlyPrice: 0,
-    description: 'Pour découvrir la plateforme et tester vos premiers dossiers.',
-    badge: null,
-    features: [
-      { label: '2 certifications / mois', included: true },
-      { label: '1 compte utilisateur', included: true },
-      { label: 'Accès marketplace (lecture)', included: true },
-      { label: 'QR Code basique', included: true },
-      { label: 'Support communauté', included: true },
-      { label: 'Certifications illimitées', included: false },
-      { label: 'Intelligence de marché', included: false },
-      { label: 'Export XML/JSON/PDF', included: false },
-      { label: 'API REST', included: false },
-      { label: 'Support prioritaire', included: false },
-    ],
-  },
-  {
-    id: 'sme',
-    name: 'Pro',
-    monthlyPrice: 29000,
-    yearlyPrice: 270000,
-    description: "Pour les PME qui souhaitent certifier et commercialiser leurs produits à l'échelle CEMAC.",
-    badge: 'Le plus populaire',
-    features: [
-      { label: 'Certifications illimitées', included: true },
-      { label: '5 comptes utilisateurs', included: true },
-      { label: 'Marketplace (publication)', included: true },
-      { label: 'QR Code professionnel', included: true },
-      { label: 'Intelligence de marché basique', included: true },
-      { label: 'Export PDF certifications', included: true },
-      { label: 'Support email 48h', included: true },
-      { label: 'Module logistique', included: false },
-      { label: 'API REST complète', included: false },
-      { label: 'Account manager dédié', included: false },
-    ],
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    monthlyPrice: 99000,
-    yearlyPrice: 900000,
-    description: 'Pour les grandes entreprises et groupes nécessitant une couverture complète et sur mesure.',
-    badge: null,
-    features: [
-      { label: 'Certifications illimitées', included: true },
-      { label: 'Utilisateurs illimités', included: true },
-      { label: 'Marketplace premium', included: true },
-      { label: 'Intelligence de marché complète', included: true },
-      { label: 'Module logistique & transit', included: true },
-      { label: 'API REST + webhooks', included: true },
-      { label: 'Export XML/JSON/PDF', included: true },
-      { label: 'Support prioritaire 24/7', included: true },
-      { label: 'Account manager dédié', included: true },
-      { label: 'Onboarding personnalisé', included: true },
-    ],
-  },
-]
-
-export const formatPlanPrice = (amount: number, period: 'monthly' | 'yearly' = 'monthly') =>
-  amount === 0 ? 'Gratuit' : `${amount.toLocaleString('fr-FR')} XAF / ${period === 'yearly' ? 'an' : 'mois'}`
+export function findPricingPlan(
+  plans: readonly PricingPlanView[],
+  planId: string | null | undefined,
+): PricingPlanView | null {
+  if (!planId) return null
+  return plans.find((plan) => plan.id === planId) ?? null
+}
 
 export function getPlanPrice(
+  plans: readonly PricingPlanView[],
+  planId: string,
+  period?: BillingPeriod,
+): number | null
+/** @deprecated Chargez les offres CMS et utilisez la surcharge avec `plans`. */
+export function getPlanPrice(
   planId: PublicPlanId | 'institutional',
-  period: 'monthly' | 'yearly' = 'monthly',
+  period?: BillingPeriod,
+): number | null
+export function getPlanPrice(
+  plansOrPlanId: readonly PricingPlanView[] | PublicPlanId | 'institutional',
+  planIdOrPeriod: string = 'monthly',
+  period: BillingPeriod = 'monthly',
 ): number | null {
-  if (planId === 'institutional') return null
-  const plan = PUBLIC_PRICING_PLANS.find((candidate) => candidate.id === planId)
+  // Compatibility for callers outside this migration's ownership. Deliberately
+  // return no price rather than reintroducing a stale business-price fallback.
+  if (!Array.isArray(plansOrPlanId)) return null
+
+  const plan = findPricingPlan(plansOrPlanId, planIdOrPeriod)
   if (!plan) return null
   return period === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice
 }
 
-export const SETTINGS_UPGRADE_PLANS = PUBLIC_PRICING_PLANS
-  .filter((plan) => plan.id !== 'free')
-  .map((plan) => ({
-    id: plan.id,
-    label: plan.name,
-    price: formatPlanPrice(plan.monthlyPrice),
-    description: plan.description,
-    highlights: plan.features.filter((feature) => feature.included).slice(0, 4).map((feature) => feature.label),
-  }))
+export function getUpgradePlans(plans: readonly PricingPlanView[]) {
+  return plans
+    .filter((plan) => plan.id !== 'free' && plan.id !== 'institutional')
+    .map((plan) => ({
+      id: plan.id,
+      label: plan.name,
+      price: formatPlanPrice(plan.monthlyPrice, 'monthly', plan.currency),
+      description: plan.description,
+      highlights: plan.features
+        .filter((feature) => feature.included && feature.label)
+        .slice(0, 4)
+        .map((feature) => feature.label as string),
+    }))
+}

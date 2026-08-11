@@ -1,23 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Receipt, Download, TrendingUp, Clock, CheckCircle } from 'lucide-react'
+import { Receipt, Download, TrendingUp, Clock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth.store'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { formatDate, cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { Invoice } from '@/types'
-
-const CEMAC_TAX_RATES: Record<string, { rate: number; label: string }> = {
-  CM: { rate: 19.25, label: 'TVA' },
-  GA: { rate: 18,    label: 'TVA' },
-  CG: { rate: 18.9,  label: 'TVA' },
-  TD: { rate: 18,    label: 'TVA' },
-  CF: { rate: 19,    label: 'TVA' },
-  GQ: { rate: 15,    label: 'TVA' },
-}
+import { useTaxRates } from '@/hooks/use-cms'
+import { getPrimaryLanguage } from '@/lib/i18n-utils'
+import type { CmsLocale, TaxRateView } from '@/lib/cms-types'
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   mtn_momo:      'MTN Mobile Money',
@@ -25,12 +18,16 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   bank_transfer: 'Virement bancaire',
 }
 
-async function downloadInvoicePdf(inv: Invoice, userName: string) {
+async function downloadInvoicePdf(
+  inv: Invoice,
+  userName: string,
+  taxRates: ReadonlyMap<string, TaxRateView>,
+) {
   // Dynamic import to keep bundle lean
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
-  const taxInfo = CEMAC_TAX_RATES[inv.country] ?? { rate: inv.tax_rate, label: 'TVA' }
+  const taxInfo = taxRates.get(inv.country)
   const pageW = doc.internal.pageSize.getWidth()
 
   // ── Header ──────────────────────────────────────────────────────────────
@@ -91,7 +88,7 @@ async function downloadInvoicePdf(inv: Invoice, userName: string) {
   doc.text('Montant HT :', 105, totY)
   doc.text(`${inv.amount_ht.toLocaleString('fr-FR')} XAF`, pageW - 15, totY, { align: 'right' })
 
-  doc.text(`${taxInfo.label} ${taxInfo.rate}% :`, 105, totY + 7)
+  doc.text(`TVA ${taxInfo?.rate ?? inv.tax_rate}% :`, 105, totY + 7)
   doc.text(`${inv.tax_amount.toLocaleString('fr-FR')} XAF`, pageW - 15, totY + 7, { align: 'right' })
 
   doc.setFillColor(0, 80, 60)
@@ -132,7 +129,14 @@ async function downloadInvoicePdf(inv: Invoice, userName: string) {
 }
 
 export function BillingPage() {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
+  const locale = getPrimaryLanguage(i18n.resolvedLanguage ?? i18n.language) as CmsLocale
+  const {
+    data: taxRates,
+    loading: taxRatesLoading,
+    error: taxRatesError,
+  } = useTaxRates(locale)
+  const taxRatesByCountry = new Map(taxRates.map((taxRate) => [taxRate.countryCode, taxRate]))
   const profile = useAuthStore((s) => s.profile)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -155,7 +159,7 @@ export function BillingPage() {
   const handleDownload = async (inv: Invoice) => {
     setDownloadingId(inv.id)
     try {
-      await downloadInvoicePdf(inv, profile?.full_name ?? profile?.email ?? 'Client')
+      await downloadInvoicePdf(inv, profile?.full_name ?? profile?.email ?? 'Client', taxRatesByCountry)
     } catch (err) {
       console.error(err)
       toast.error('Erreur lors de la génération du PDF')
@@ -179,6 +183,13 @@ export function BillingPage() {
           </div>
         </div>
       </div>
+      {taxRatesLoading ? (
+        <p className="text-sm text-muted-foreground">Chargement du référentiel fiscal…</p>
+      ) : taxRatesError ? (
+        <p role="alert" className="text-sm text-red-600">Impossible de charger le référentiel fiscal.</p>
+      ) : taxRates.length === 0 ? (
+        <p role="status" className="text-sm text-amber-700">Référentiel fiscal indisponible.</p>
+      ) : null}
 
       {/* Stats */}
       {!loading && invoices.length > 0 && (
@@ -217,7 +228,7 @@ export function BillingPage() {
       ) : (
         <div className="space-y-3">
           {invoices.map((inv) => {
-            const taxInfo = CEMAC_TAX_RATES[inv.country] ?? { rate: inv.tax_rate, label: 'TVA' }
+            const taxInfo = taxRatesByCountry.get(inv.country)
             return (
               <Card key={inv.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
@@ -241,7 +252,7 @@ export function BillingPage() {
                     {/* Tax breakdown */}
                     <div className="text-right hidden sm:block">
                       <p className="text-xs text-muted-foreground">{inv.amount_ht.toLocaleString('fr-FR')} XAF HT</p>
-                      <p className="text-xs text-muted-foreground">+ {taxInfo.label} {taxInfo.rate}% = {inv.tax_amount.toLocaleString('fr-FR')} XAF</p>
+                      <p className="text-xs text-muted-foreground">+ TVA {taxInfo?.rate ?? inv.tax_rate}% = {inv.tax_amount.toLocaleString('fr-FR')} XAF</p>
                     </div>
 
                     {/* Total TTC */}
@@ -274,7 +285,7 @@ export function BillingPage() {
 
                   {/* Mobile tax detail */}
                   <div className="sm:hidden mt-2 text-xs text-muted-foreground">
-                    {inv.amount_ht.toLocaleString('fr-FR')} XAF HT + {taxInfo.label} {taxInfo.rate}% ({inv.tax_amount.toLocaleString('fr-FR')} XAF)
+                    {inv.amount_ht.toLocaleString('fr-FR')} XAF HT + TVA {taxInfo?.rate ?? inv.tax_rate}% ({inv.tax_amount.toLocaleString('fr-FR')} XAF)
                   </div>
                 </CardContent>
               </Card>

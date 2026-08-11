@@ -1,5 +1,5 @@
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import {
   TrendingUp, BarChart3,
   MessageSquare, Send, Bot, User, RefreshCw, Wifi, WifiOff,
@@ -13,68 +13,13 @@ import { Badge } from '@/components/ui/badge'
 
 import { formatCurrency, cn } from '@/lib/utils'
 import { CEMAC_COUNTRIES } from '@/lib/constants'
+import { useCommoditiesAndKnowledge } from '@/hooks/use-cms'
+import { getPrimaryLanguage } from '@/lib/i18n-utils'
+import type { CmsLocale } from '@/lib/cms-types'
 
 type Tab = 'prices' | 'trends' | 'assistant'
 
-// ─── USD prices per commodity (baseline from World Bank / public market data) ──
-// These are the static USD baseline values used when the World Bank API is unavailable.
-// The XAF conversion below is ALWAYS live from Frankfurter API.
-const COMMODITY_BASELINES = [
-  { id: 1,  wbIndicator: 'PCOCOA',    name: 'Cacao brut',          country: 'CM', unitXAF: 'tonne',  category: 'Agricole',  usdUnit: 'metric_ton',  usdPrice: 8900  },
-  { id: 2,  wbIndicator: 'PCOFFOTM',  name: 'Café Robusta',        country: 'CM', unitXAF: 'tonne',  category: 'Agricole',  usdUnit: 'metric_ton',  usdPrice: 4200  },
-  { id: 3,  wbIndicator: null,        name: 'Bois Okoumé',         country: 'GA', unitXAF: 'm³',     category: 'Forestier', usdUnit: 'cubic_meter', usdPrice: 290   },
-  { id: 4,  wbIndicator: 'POILBRE',   name: 'Pétrole brut (Brent)',country: 'CG', unitXAF: 'baril',  category: 'Énergie',   usdUnit: 'barrel',      usdPrice: 82    },
-  { id: 5,  wbIndicator: 'PCOTTIND',  name: 'Coton graine',        country: 'TD', unitXAF: 'tonne',  category: 'Agricole',  usdUnit: 'metric_ton',  usdPrice: 1820  },
-  { id: 6,  wbIndicator: 'PSUGAUSA',  name: 'Sucre roux',          country: 'CM', unitXAF: 'tonne',  category: 'Agricole',  usdUnit: 'metric_ton',  usdPrice: 430   },
-  { id: 7,  wbIndicator: null,        name: 'Bois Wengé',          country: 'CG', unitXAF: 'm³',     category: 'Forestier', usdUnit: 'cubic_meter', usdPrice: 1040  },
-  { id: 8,  wbIndicator: null,        name: 'Uranium (U3O8)',      country: 'CF', unitXAF: 'kg',     category: 'Minier',    usdUnit: 'kg',          usdPrice: 110   },
-  { id: 9,  wbIndicator: 'PNGASEU',   name: 'Gaz naturel (GNL)',   country: 'GQ', unitXAF: 'MMBTU',  category: 'Énergie',   usdUnit: 'mmbtu',       usdPrice: 9.5   },
-  { id: 10, wbIndicator: null,        name: 'Banane Plantain',     country: 'CM', unitXAF: 'tonne',  category: 'Agricole',  usdUnit: 'metric_ton',  usdPrice: 330   },
-]
-
-const CATEGORIES = ['Tous', 'Agricole', 'Forestier', 'Énergie', 'Minier']
-
-// ─── Chatbot knowledge base ───
 type Message = { role: 'user' | 'bot'; text: string; time: Date }
-
-const FAQ: { patterns: RegExp[]; answer: string }[] = [
-  {
-    patterns: [/règle.* origine|origin.*rule/i, /seuil.*%/i],
-    answer: `**Règles d'origine CEMAC / ZLECAF**\n\nLes seuils de valeur ajoutée locale requis sont :\n• **CEMAC** : 40 % minimum\n• **ZLECAF** : 30 % minimum\n• **APE (UE)** : 50 % minimum (ouvre droit au EUR.1)\n• **CEDEAO** : 35 % minimum\n\nLe calcul : (Coût total − Matières importées) / Coût total × 100.\n\nUtilisez l'onglet **Règles d'Origine** de la section Logistique pour effectuer le calcul automatiquement.`,
-  },
-  {
-    patterns: [/eur\.?1|certificat.*circulation/i],
-    answer: `**Certificat EUR.1**\n\nLe certificat de circulation EUR.1 atteste l'origine préférentielle des marchandises dans le cadre des Accords de Partenariat Économique (APE) UE-ACP.\n\n**Conditions :**\n• Certification CEMAC INTEGRA approuvée\n• Valeur ajoutée locale ≥ 50 %\n• Produit originaire d'un pays ACP\n\n**Délai de traitement :** 3-5 jours ouvrés\n**Validité :** 10 mois\n\nSoumettez votre demande depuis la section **Logistique → Certificats EUR.1**.`,
-  },
-  {
-    patterns: [/zlecaf|zlec|afcfta.*zone libre/i, /zone.*libre.*échange.*afric/i],
-    answer: `**ZLECAF — Zone de Libre-Échange Continentale Africaine**\n\nEntrée en vigueur en 2021, la ZLECAF couvre 55 pays africains et représente la plus grande zone de libre-échange au monde par le nombre de pays membres.\n\n**Avantages pour les exportateurs CEMAC :**\n• Réduction progressive des droits de douane (jusqu'à 90 % des lignes tarifaires)\n• Seuil d'origine préférentielle : 30 % valeur ajoutée locale\n• Accès à un marché de 1,4 milliard de consommateurs\n\n**Secteurs prioritaires :** Agriculture, industries manufacturières, services.`,
-  },
-  {
-    patterns: [/droits.*douane|tarif.*douan/i, /tec cemac/i],
-    answer: `**Tarif Extérieur Commun (TEC) CEMAC**\n\nLe TEC CEMAC s'applique uniformément aux 6 pays membres :\n\n• **Catégorie 1** (biens de première nécessité) : 5 %\n• **Catégorie 2** (matières premières) : 10 %\n• **Catégorie 3** (biens intermédiaires) : 20 %\n• **Catégorie 4** (biens de consommation finale) : 30 %\n\nLes produits certifiés CEMAC INTEGRA bénéficient d'une exonération partielle au sein de la zone CEMAC.`,
-  },
-  {
-    patterns: [/cacao|café|coton|bois.*prix|prix.*march/i],
-    answer: `**Prix indicatifs des matières premières**\n\nConsultez l'onglet **Observatoire des Prix** pour visualiser les dernières références annuelles disponibles de la Banque mondiale, converties en XAF. Ces valeurs ne sont ni des cours en direct, ni des offres commerciales.`,
-  },
-  {
-    patterns: [/label.*cemac|certif.*made.*in|made in cemac/i],
-    answer: `**Label "Made in CEMAC"**\n\nLe label Made in CEMAC est délivré par CEMAC INTEGRA après audit et certifie que le produit :\n\n✅ Est fabriqué dans l'espace CEMAC (CM, GA, CG, TD, CF, GQ)\n✅ Respecte une valeur ajoutée locale ≥ 40 %\n✅ Satisfait aux normes qualité CEMAC\n\n**Types de certifications :**\n• **Made in CEMAC** : Origine simple\n• **Origine CEMAC** : Pour accès préférentiel intra-zone\n• **Qualité+** : Avec attestation qualité ISO/CEMAC\n\nInitiez votre dossier depuis la section **Certifications**.`,
-  },
-  {
-    patterns: [/contact|aide|support|help/i],
-    answer: `**Support CEMAC INTEGRA**\n\nPour toute assistance :\n📧 support@cemac-integra.org\n📞 +237 222 123 456 (Yaoundé)\n🌐 www.cemac-integra.org\n\n**Heures d'ouverture :** Lun–Ven, 8h–17h (WAT)\n\nConsultez également notre documentation en ligne pour les procédures de certification, les règles d'origine et les corridors douaniers.`,
-  },
-]
-
-const SUGGESTIONS = [
-  'market_intelligence.assistant.suggestion_1',
-  'market_intelligence.assistant.suggestion_2',
-  'market_intelligence.assistant.suggestion_3',
-  'market_intelligence.assistant.suggestion_4',
-  'market_intelligence.assistant.suggestion_5',
-]
 
 function formatBotMessage(text: string) {
   const lines = text.split('\n')
@@ -101,7 +46,13 @@ function formatBotMessage(text: string) {
 
 export function MarketIntelligencePage() {
   const [activeTab, setActiveTab] = useState<Tab>('prices')
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
+  const locale = getPrimaryLanguage(i18n.resolvedLanguage ?? i18n.language) as CmsLocale
+  const {
+    data: cmsData,
+    loading: cmsLoading,
+    error: cmsError,
+  } = useCommoditiesAndKnowledge(locale)
 
   // Trend chart state (real data from DB)
   const [trendMonths, setTrendMonths] = useState<string[]>([])
@@ -118,21 +69,33 @@ export function MarketIntelligencePage() {
   // NOT real-time spot prices — clearly indicated in the UI
   const [usdToXaf, setUsdToXaf] = useState<number | null>(null)
   const [wbPrices, setWbPrices] = useState<Record<string, number>>({})
-  const [dataSource, setDataSource] = useState<'live' | 'fallback' | 'loading'>('loading')
+  const [dataSource, setDataSource] = useState<'live' | 'reference' | 'loading'>('loading')
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
-  // Build the displayed commodity rows from baselines + live data
-  const COMMODITIES = COMMODITY_BASELINES.map((c) => {
-    const usdPrice = c.wbIndicator && wbPrices[c.wbIndicator] ? wbPrices[c.wbIndicator] : c.usdPrice
-    // Fixed EUR/XAF peg = 655.957, use live rate if available
-    const rate = usdToXaf ?? 655.957
-    const price = Math.round(usdPrice * rate)
-    const source = c.wbIndicator && wbPrices[c.wbIndicator] ? 'Banque mondiale' : 'Référence statique'
-    return { id: c.id, name: c.name, country: c.country, price, unit: c.unitXAF, category: c.category, source }
+  const categories = Array.from(new Set(cmsData.commodities.map((commodity) => commodity.category).filter(Boolean))) as string[]
+  const commodities = cmsData.commodities.map((commodity) => {
+    const usdPrice = commodity.worldBankIndicator && wbPrices[commodity.worldBankIndicator]
+      ? wbPrices[commodity.worldBankIndicator]
+      : commodity.usdPrice
+    const price = usdToXaf === null ? null : Math.round(usdPrice * usdToXaf)
+    const source = commodity.worldBankIndicator && wbPrices[commodity.worldBankIndicator] ? 'Banque mondiale' : 'Référence CMS'
+    return {
+      id: commodity.id,
+      name: commodity.name ?? commodity.key,
+      country: commodity.countryCode,
+      price,
+      unit: commodity.xafUnit ?? commodity.usdUnit,
+      category: commodity.category ?? '',
+      source,
+      usdPrice,
+    }
   })
+  const suggestions = cmsData.knowledge.filter(
+    (entry): entry is typeof entry & { suggestion: string } => Boolean(entry.suggestion),
+  )
 
-  const fetchMarketData = async () => {
+  const fetchMarketData = useCallback(async () => {
     setRefreshing(true)
     let exchangeOk = false
     let wbOk = false
@@ -151,10 +114,13 @@ export function MarketIntelligencePage() {
 
     // ── 2. Fetch commodity prices from World Bank Pink Sheet (source=21) ──
     // Annual reference prices in USD — NOT real-time. Updated quarterly by World Bank.
-    const INDICATORS = ['PCOCOA', 'PCOFFOTM', 'POILBRE', 'PCOTTIND', 'PSUGAUSA', 'PNGASEU']
+    const indicators = cmsData.commodities.flatMap((commodity) =>
+      commodity.worldBankIndicator ? [commodity.worldBankIndicator] : [],
+    )
     try {
+      if (indicators.length === 0) throw new Error('Aucun indicateur de marché configuré.')
       const wbRes = await fetch(
-        `https://api.worldbank.org/v2/country/all/indicator/${INDICATORS.join(';')}?format=json&source=21&mrv=1&per_page=30`,
+        `https://api.worldbank.org/v2/country/all/indicator/${indicators.join(';')}?format=json&source=21&mrv=1&per_page=30`,
         { signal: AbortSignal.timeout(10000) }
       )
       if (wbRes.ok) {
@@ -174,10 +140,10 @@ export function MarketIntelligencePage() {
       }
     } catch { /* keep static baselines */ }
 
-    setDataSource(exchangeOk || wbOk ? 'live' : 'fallback')
+    setDataSource(exchangeOk || wbOk ? 'live' : 'reference')
     setLastRefresh(new Date())
     setRefreshing(false)
-  }
+  }, [cmsData.commodities])
 
   // Chatbot state
   const [messages, setMessages] = useState<Message[]>(() => [
@@ -192,7 +158,6 @@ export function MarketIntelligencePage() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetchMarketData()
     supabase
       .from('produits')
       .select('id', { count: 'exact', head: true })
@@ -233,10 +198,16 @@ export function MarketIntelligencePage() {
   }, [])
 
   useEffect(() => {
+    if (!cmsLoading && cmsData.commodities.length > 0) {
+      void fetchMarketData()
+    }
+  }, [cmsData.commodities.length, cmsLoading, fetchMarketData])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping])
 
-  const filteredCommodities = COMMODITIES.filter((c) => {
+  const filteredCommodities = commodities.filter((c) => {
     const matchCat = categoryFilter === 'Tous' || c.category === categoryFilter
     const matchCountry = countryFilter === 'all' || c.country === countryFilter
     return matchCat && matchCountry
@@ -250,9 +221,14 @@ export function MarketIntelligencePage() {
     setIsTyping(true)
 
     setTimeout(() => {
-      const faqEntry = FAQ.find((f) => f.patterns.some((p) => p.test(text)))
-      const botText = faqEntry?.answer
-        ?? "Je n'ai pas trouvé de réponse précise à votre question. Essayez de reformuler ou consultez notre documentation officielle sur www.cemac-integra.org. Vous pouvez aussi contacter le support à support@cemac-integra.org."
+      const faqEntry = cmsData.knowledge.find((entry) => entry.patterns.some((pattern) => {
+        try {
+          return new RegExp(pattern, 'i').test(text)
+        } catch {
+          return false
+        }
+      }))
+      const botText = faqEntry?.answer ?? 'Aucune réponse disponible dans la base de connaissances.'
 
       setMessages((prev) => [...prev, { role: 'bot', text: botText, time: new Date() }])
       setIsTyping(false)
@@ -311,9 +287,9 @@ export function MarketIntelligencePage() {
                     <span className="flex items-center gap-1 text-green-300 text-xs font-medium">
                       <Wifi className="h-3 w-3" /> Taux de change en direct (Frankfurter) · Prix réf. World Bank
                     </span>
-                  ) : dataSource === 'fallback' ? (
+                  ) : dataSource === 'reference' ? (
                     <span className="flex items-center gap-1 text-yellow-300 text-xs font-medium">
-                      <WifiOff className="h-3 w-3" /> API indisponible · Données de référence statiques (USD/XAF fixe 655.957)
+                      <WifiOff className="h-3 w-3" /> API de marché indisponible · Conversion XAF indisponible
                     </span>
                   ) : (
                     <span className="text-cemac-200 text-xs">Chargement des données de marché…</span>
@@ -329,7 +305,7 @@ export function MarketIntelligencePage() {
               <div className="flex items-center gap-4">
                 <div className="flex gap-4 text-sm">
                   <div className="text-center">
-                    <p className="text-2xl font-bold">{COMMODITY_BASELINES.length}</p>
+                    <p className="text-2xl font-bold">{cmsLoading ? '…' : cmsData.commodities.length}</p>
                     <p className="text-cemac-200">{t('market_intelligence.prices.commodities')}</p>
                   </div>
                   <div className="text-center">
@@ -345,7 +321,7 @@ export function MarketIntelligencePage() {
                   variant="ghost"
                   size="icon"
                   className="text-white hover:bg-white/10 shrink-0"
-                  onClick={fetchMarketData}
+                  onClick={() => void fetchMarketData()}
                   disabled={refreshing}
                   title="Actualiser les données de marché"
                 >
@@ -362,7 +338,8 @@ export function MarketIntelligencePage() {
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              <option value="Tous">{t('market_intelligence.prices.all_categories')}</option>
+              {categories.map((category) => <option key={category} value={category}>{category}</option>)}
             </select>
             <select
               className="h-9 px-3 rounded-md border border-input bg-white text-sm focus:outline-none focus:ring-1 focus:ring-cemac-600"
@@ -380,6 +357,13 @@ export function MarketIntelligencePage() {
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
+                {cmsLoading ? (
+                  <div className="flex justify-center py-12"><LoadingSpinner /></div>
+                ) : cmsError ? (
+                  <p role="alert" className="py-10 text-center text-sm text-red-600">Impossible de charger les références de marché.</p>
+                ) : cmsData.commodities.length === 0 ? (
+                  <p role="status" className="py-10 text-center text-sm text-muted-foreground">Références de marché indisponibles.</p>
+                ) : (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-gray-50">
@@ -404,7 +388,9 @@ export function MarketIntelligencePage() {
                             <Badge variant="secondary" className="text-xs">{c.category}</Badge>
                           </td>
                           <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                            {formatCurrency(c.price)}
+                            {c.price === null
+                              ? `${c.usdPrice.toLocaleString(locale)} USD`
+                              : formatCurrency(c.price)}
                           </td>
                           <td className="px-4 py-3 text-right text-muted-foreground">/{c.unit}</td>
                           <td className="px-4 py-3 text-right text-xs text-muted-foreground">{c.source}</td>
@@ -413,6 +399,7 @@ export function MarketIntelligencePage() {
                     })}
                   </tbody>
                 </table>
+                )}
                 {filteredCommodities.length === 0 && (
                   <p className="text-center py-10 text-sm text-muted-foreground">{t('market_intelligence.prices.no_results')}</p>
                 )}
@@ -630,9 +617,9 @@ export function MarketIntelligencePage() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     className="flex-1"
-                    disabled={isTyping}
+                    disabled={isTyping || cmsLoading || Boolean(cmsError) || cmsData.knowledge.length === 0}
                   />
-                  <Button type="submit" disabled={!input.trim() || isTyping}>
+                  <Button type="submit" disabled={!input.trim() || isTyping || cmsLoading || Boolean(cmsError) || cmsData.knowledge.length === 0}>
                     <Send className="h-4 w-4" />
                   </Button>
                 </form>
@@ -647,14 +634,21 @@ export function MarketIntelligencePage() {
                 <CardTitle className="text-sm">{t('market_intelligence.assistant.suggestions_title')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {SUGGESTIONS.map((s) => (
+                {cmsLoading ? (
+                  <LoadingSpinner size="sm" className="py-4" />
+                ) : cmsError ? (
+                  <p role="alert" className="text-sm text-red-600">Impossible de charger la base de connaissances.</p>
+                ) : cmsData.knowledge.length === 0 ? (
+                  <p role="status" className="text-sm text-muted-foreground">Assistant indisponible.</p>
+                ) : null}
+                {suggestions.map((entry) => (
                   <button
-                    key={s}
-                    onClick={() => sendMessage(t(s))}
-                    disabled={isTyping}
+                    key={entry.id}
+                    onClick={() => sendMessage(entry.suggestion)}
+                    disabled={isTyping || cmsLoading || Boolean(cmsError) || cmsData.knowledge.length === 0}
                     className="w-full text-left text-sm px-3 py-2.5 rounded-lg border hover:bg-cemac-50 hover:border-cemac-200 hover:text-cemac-800 transition-colors disabled:opacity-50"
                   >
-                    {t(s)}
+                    {entry.suggestion}
                   </button>
                 ))}
               </CardContent>

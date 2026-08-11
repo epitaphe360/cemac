@@ -28,6 +28,43 @@ vi.mock('@/stores/auth.store', () => ({
     }),
 }))
 
+vi.mock('@/hooks/use-cms', () => ({
+  usePricing: () => ({
+    data: {
+      plans: [
+        {
+          id: 'free',
+          name: 'Starter',
+          description: 'Découverte',
+          monthlyPrice: 0,
+          yearlyPrice: 0,
+          currency: 'XAF',
+          badge: null,
+          cta: { label: 'Commencer', href: '/auth/register' },
+          features: [{ id: 'f1', key: 'basic', label: 'Fonctionnalité Starter', included: true, sortOrder: 10 }],
+          sortOrder: 10,
+        },
+        {
+          id: 'sme',
+          name: 'Pro',
+          description: 'Pour les PME',
+          monthlyPrice: 29_000,
+          yearlyPrice: 270_000,
+          currency: 'XAF',
+          badge: null,
+          cta: { label: 'Souscrire', href: '/auth/register?plan=sme' },
+          features: [{ id: 'f2', key: 'pro', label: 'Fonctionnalité Pro', included: true, sortOrder: 10 }],
+          sortOrder: 20,
+        },
+      ],
+      faqs: [],
+    },
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}))
+
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: {

@@ -91,6 +91,29 @@ describe('AdminPage — tabs', () => {
     await user.click(usersBtns[0])
     expect(await screen.findByPlaceholderText(/nom ou email/i)).toBeInTheDocument()
   })
+
+  it('opens the CMS editor and exposes every collection group', async () => {
+    renderAdmin()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /contenu cms/i }))
+
+    expect(await screen.findByText(/collections cms/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /paramètres & coordonnées/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^tarifs$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /documents juridiques/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /taux de taxes/i })).toBeInTheDocument()
+  })
+
+  it('shows API metadata status without secret inputs', async () => {
+    renderAdmin()
+    const user = userEvent.setup()
+    const apiButtons = await screen.findAllByRole('button', { name: /apis & paiements/i })
+    await user.click(apiButtons[0])
+
+    expect(await screen.findByText(/statut uniquement/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/clé api/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/client secret/i)).not.toBeInTheDocument()
+  })
 })
 
 describe('AdminPage — access denied', () => {

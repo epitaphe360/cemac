@@ -6,7 +6,7 @@ import {
   Search, CheckCircle, XCircle, Clock,
   Eye, EyeOff, Package, FileText, History, Landmark, MapPin,
   AlertTriangle, Plus, Trash2, PencilLine, ToggleLeft, ToggleRight,
-  Settings2, Smartphone, Banknote, Mail, Save, RefreshCw, ChevronDown, ChevronUp,
+  Settings2, Save, RefreshCw, ChevronDown, ChevronUp,
   Receipt, MessageSquare, TrendingUp,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -19,11 +19,12 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { useTranslation } from 'react-i18next'
 import { formatDate, cn } from '@/lib/utils'
 import { CERTIFICATION_STATUS_LABELS, CEMAC_COUNTRIES } from '@/lib/constants'
-import { getPlanPrice, type PublicPlanId } from '@/lib/pricing'
-import type { Profile, Entreprise, Certification, Document, WorkflowEvent, Produit, ChambreCommerce, Corridor, LogisticsAlert, ContactRequest } from '@/types'
+import type { Profile, Entreprise, Certification, Document, WorkflowEvent, Produit, ChambreCommerce, Corridor, LogisticsAlert, ContactRequest, PricingPlan, TaxRate } from '@/types'
+import { CmsAdminPanel } from './components/CmsAdminPanel'
+import { ApiConfigStatusPanel } from './components/ApiConfigStatusPanel'
 import toast from 'react-hot-toast'
 
-type Tab = 'overview' | 'certifications' | 'users' | 'companies' | 'products' | 'documents' | 'audit' | 'chambers' | 'logistics' | 'api_config' | 'billing' | 'contact_requests'
+type Tab = 'overview' | 'certifications' | 'users' | 'companies' | 'products' | 'documents' | 'audit' | 'chambers' | 'logistics' | 'cms' | 'api_config' | 'billing' | 'contact_requests'
 
 const ADMIN_ROLES = ['super_admin', 'cemac_officer', 'chamber_agent'] as const
 
@@ -139,13 +140,11 @@ function AdminPageInner() {
   const [savingCorridor, setSavingCorridor] = useState(false)
   const [savingAlert, setSavingAlert] = useState(false)
 
-  // ── API Configs ──────────────────────────────────────────────────────────
-  interface ApiConfig {
-    id: string; key: string; name: string; category: string
-    config: Record<string, string>; is_active: boolean; updated_at: string
-  }
-  const [apiConfigs, setApiConfigs] = useState<ApiConfig[]>([])
-  const [apiConfigsLoading, setApiConfigsLoading] = useState(false)
+  // Conservé uniquement le temps de rendre l'ancien panneau inatteignable ;
+  // les données sensibles ne sont plus chargées depuis api_configs.
+  const legacyApiEditorEnabled = false
+  const apiConfigsLoading = false
+  const [apiConfigs, setApiConfigs] = useState<Array<{ key: string; config: Record<string, string>; is_active: boolean }>>([])
   const [apiConfigsDraft, setApiConfigsDraft] = useState<Record<string, Record<string, string>>>({})
   const [apiConfigsVisible, setApiConfigsVisible] = useState<Record<string, boolean>>({})
   const [apiConfigsExpanded, setApiConfigsExpanded] = useState<Record<string, boolean>>({})
@@ -172,6 +171,8 @@ function AdminPageInner() {
     payment_ref: '', billing_period: 'monthly', country: 'CM', notes: '',
   })
   const [creatingInvoice, setCreatingInvoice] = useState(false)
+  const [billingPlans, setBillingPlans] = useState<PricingPlan[]>([])
+  const [billingTaxRates, setBillingTaxRates] = useState<TaxRate[]>([])
 
   // ── Contact Requests ─────────────────────────────────────────────────────
   const [contacts, setContacts] = useState<ContactRequest[]>([])
@@ -195,7 +196,6 @@ function AdminPageInner() {
     else if (activeTab === 'audit')      { setAuditEvents([]); setAuditLoading(false) }
     else if (activeTab === 'chambers')   { setChambers([]); setChambersLoading(false) }
     else if (activeTab === 'logistics')  { setCorridors([]); setAlerts([]); setLogisticsLoading(false) }
-    else if (activeTab === 'api_config') { setApiConfigs([]); setApiConfigsLoading(false) }
     else if (activeTab === 'billing')    { setInvoices([]); setInvoicesLoading(false) }
     else if (activeTab === 'contact_requests') { setContacts([]); setContactsLoading(false) }
     else if (activeTab === 'overview')   { setStatsLoading(true) }
@@ -331,36 +331,15 @@ function AdminPageInner() {
           setChambersLoading(false)
         })
     }
-    if (activeTab === 'api_config') {
-      setApiConfigsLoading(true)
-      supabase.from('api_configs').select('*').order('category').order('name')
-        .then(({ data, error }) => {
-          if (error) toast.error(t('admin.toasts.load_error', 'Erreur chargement API configs'))
-          else if (data) {
-            const configs = data.map((item) => ({
-              ...item,
-              config: (
-                item.config && typeof item.config === 'object' && !Array.isArray(item.config)
-                  ? item.config
-                  : {}
-              ) as Record<string, string>,
-            }))
-            setApiConfigs(configs)
-            const draft: Record<string, Record<string, string>> = {}
-            configs.forEach((c) => { draft[c.key] = { ...c.config } })
-            setApiConfigsDraft(draft)
-            fetchedTabs.current.add('api_config')
-          }
-          setApiConfigsLoading(false)
-        })
-    }
     if (activeTab === 'billing') {
       setInvoicesLoading(true)
       Promise.all([
         supabase.from('invoices').select('*').order('issued_at', { ascending: false }).limit(300),
         supabase.from('profiles').select('id, email, full_name'),
-      ]).then(([invoiceResult, profileResult]) => {
-          if (invoiceResult.error || profileResult.error) {
+        supabase.from('pricing_plans').select('*').eq('is_published', true).order('sort_order'),
+        supabase.from('tax_rates').select('*').eq('is_active', true).order('country_code'),
+      ]).then(([invoiceResult, profileResult, plansResult, taxResult]) => {
+          if (invoiceResult.error || profileResult.error || plansResult.error || taxResult.error) {
             toast.error(t('admin.toasts.load_error', 'Erreur chargement factures'))
           } else {
             const profilesById = new Map((profileResult.data ?? []).map((item) => [item.id, item]))
@@ -368,6 +347,8 @@ function AdminPageInner() {
               ...invoice,
               profile: profilesById.get(invoice.user_id),
             })))
+            setBillingPlans(plansResult.data ?? [])
+            setBillingTaxRates(taxResult.data ?? [])
             fetchedTabs.current.add('billing')
           }
           setInvoicesLoading(false)
@@ -469,7 +450,10 @@ function AdminPageInner() {
 
   const updateCompanyPlan = async (id: string, plan: string) => {
     setUpdatingCompany(id)
-    const { error } = await supabase.from('entreprises').update({ subscription_plan: plan, updated_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await supabase.rpc('admin_set_subscription_plan', {
+      target_entreprise_id: id,
+      target_plan: plan,
+    })
     if (error) { toast.error(t('admin.toasts.plan_error')) }
     else { setCompanies((prev) => prev.map((c) => c.id === id ? { ...c, subscription_plan: plan } : c)); toast.success(t('admin.toasts.plan_updated')) }
     setUpdatingCompany(null)
@@ -611,6 +595,7 @@ function AdminPageInner() {
     { id: 'chambers',       label: t('admin.tabs.chambers'),       icon: Landmark   },
     { id: 'logistics',      label: t('admin.tabs.logistics'),      icon: MapPin     },
     ...(adminProfile?.role === 'super_admin' ? [
+      { id: 'cms' as Tab,              label: 'Contenu CMS',                    icon: FileText      },
       { id: 'api_config' as Tab,       label: t('admin.tabs.api_config'),       icon: Settings2     },
       { id: 'billing' as Tab,          label: t('admin.billing.tab_label'),     icon: Receipt       },
       { id: 'contact_requests' as Tab, label: t('admin.contacts.tab_label'),    icon: MessageSquare },
@@ -1287,8 +1272,14 @@ function AdminPageInner() {
         </div>
       )}
 
-      {/* ─── API CONFIG TAB ────────────────────────────────────────────── */}
-      {activeTab === 'api_config' && (
+      {/* ─── CMS TAB ───────────────────────────────────────────────────── */}
+      {activeTab === 'cms' && <CmsAdminPanel />}
+
+      {/* ─── API CONFIG STATUS TAB (metadata only, never secrets) ──────── */}
+      {activeTab === 'api_config' && <ApiConfigStatusPanel />}
+
+      {/* Ancien éditeur désactivé : api_configs peut contenir des secrets. */}
+      {legacyApiEditorEnabled && activeTab === 'api_config' && (
         <div className="space-y-4">
           {apiConfigsLoading ? (
             <div className="flex items-center justify-center py-20">
@@ -1320,10 +1311,7 @@ function AdminPageInner() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={async () => {
-                              const { error } = await supabase.from('api_configs').update({ is_active: !isActive }).eq('key', svc.key)
-                              if (error) { toast.error(t('admin.api_config.toggle_error')); return }
-                              setApiConfigs((prev) => prev.map((c) => c.key === svc.key ? { ...c, is_active: !isActive } : c))
-                              toast.success(!isActive ? t('admin.api_config.activated') : t('admin.api_config.deactivated'))
+                              toast.error('La configuration des secrets se fait uniquement côté serveur.')
                             }}
                             className={cn('flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium transition-colors',
                               isActive ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}
@@ -1402,9 +1390,7 @@ function AdminPageInner() {
                           <Button size="sm" className="flex-1 text-xs" disabled={isSaving || !isDirty}
                             onClick={async () => {
                               setSavingApiConfig(svc.key)
-                              const { error } = await supabase.from('api_configs').update({ config: currentDraft, updated_at: new Date().toISOString() }).eq('key', svc.key)
-                              if (error) { toast.error(t('admin.api_config.save_error')) }
-                              else { setApiConfigs((prev) => prev.map((c) => c.key === svc.key ? { ...c, config: currentDraft } : c)); toast.success(t('admin.api_config.saved')) }
+                              toast.error('La configuration des secrets se fait uniquement côté serveur.')
                               setSavingApiConfig(null)
                             }}>
                             {isSaving ? <LoadingSpinner size="sm" /> : <><Save className="h-3.5 w-3.5 mr-1" />Enregistrer</>}
@@ -1478,13 +1464,14 @@ function AdminPageInner() {
                     try {
                       const { data: profileData } = await supabase.from('profiles').select('id, country').eq('email', invoiceForm.user_email).single()
                       if (!profileData) { toast.error('Utilisateur introuvable'); setCreatingInvoice(false); return }
-                      const CEMAC_TAX: Record<string, number> = { CM: 19.25, GA: 18, CG: 18.9, TD: 18, CF: 19, GQ: 15 }
                       const country = invoiceForm.country || (profileData.country ?? 'CM')
-                      const taxRate = CEMAC_TAX[country] ?? 19.25
-                      const amountHt = getPlanPrice(
-                        invoiceForm.plan_name as PublicPlanId | 'institutional',
-                        invoiceForm.billing_period as 'monthly' | 'yearly',
-                      ) ?? 0
+                      const tax = billingTaxRates.find((item) => item.country_code === country)
+                      if (!tax) { toast.error(`Aucun taux de taxe actif pour ${country}`); setCreatingInvoice(false); return }
+                      const plan = billingPlans.find((item) => item.id === invoiceForm.plan_name)
+                      if (!plan) { toast.error('Plan tarifaire CMS introuvable'); setCreatingInvoice(false); return }
+                      const taxRate = tax.rate
+                      const amountHt = invoiceForm.billing_period === 'yearly' ? plan.yearly_price : plan.monthly_price
+                      if (amountHt === null) { toast.error('Ce plan ne définit pas de prix pour cette période'); setCreatingInvoice(false); return }
                       const taxAmount = Math.round((amountHt * taxRate) / 100)
                       const amountTtc = amountHt + taxAmount
                       const now = new Date()
@@ -1530,9 +1517,11 @@ function AdminPageInner() {
                   <div className="space-y-1"><label className="text-xs font-medium">{t('admin.billing.form_client')}</label><Input placeholder="email@..." value={invoiceForm.user_email} onChange={(e) => setInvoiceForm((p) => ({ ...p, user_email: e.target.value }))} required /></div>
                   <div className="space-y-1"><label className="text-xs font-medium">{t('admin.billing.form_plan')}</label>
                     <select className="w-full h-9 px-3 rounded-md border border-input bg-white text-sm" value={invoiceForm.plan_name} onChange={(e) => setInvoiceForm((p) => ({ ...p, plan_name: e.target.value }))}>
-                      <option value="free">Gratuit (0 XAF)</option>
-                      <option value="sme">PME Pro ({getPlanPrice('sme')?.toLocaleString('fr-FR')} XAF HT)</option>
-                      <option value="enterprise">Enterprise ({getPlanPrice('enterprise')?.toLocaleString('fr-FR')} XAF HT)</option>
+                      {billingPlans.map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.id} ({(invoiceForm.billing_period === 'yearly' ? plan.yearly_price : plan.monthly_price)?.toLocaleString('fr-FR') ?? '—'} {plan.currency} HT)
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="space-y-1"><label className="text-xs font-medium">{t('admin.billing.form_method')}</label>
@@ -1542,7 +1531,7 @@ function AdminPageInner() {
                   </div>
                   <div className="space-y-1"><label className="text-xs font-medium">{t('admin.billing.form_country')}</label>
                     <select className="w-full h-9 px-3 rounded-md border border-input bg-white text-sm" value={invoiceForm.country} onChange={(e) => setInvoiceForm((p) => ({ ...p, country: e.target.value }))}>
-                      {Object.entries({ CM: 'Cameroun (19.25%)', GA: 'Gabon (18%)', CG: 'Congo (18.9%)', TD: 'Tchad (18%)', CF: 'Centrafrique (19%)', GQ: 'Guinée Équat. (15%)' }).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      {billingTaxRates.map((tax) => <option key={tax.country_code} value={tax.country_code}>{tax.country_code} ({tax.rate}%)</option>)}
                     </select>
                   </div>
                   <div className="space-y-1"><label className="text-xs font-medium">{t('admin.billing.form_ref')}</label><Input placeholder="REF-..." value={invoiceForm.payment_ref} onChange={(e) => setInvoiceForm((p) => ({ ...p, payment_ref: e.target.value }))} /></div>
@@ -1710,43 +1699,4 @@ interface ApiServiceDef {
   emoji: string; description: string; fields: ApiField[]
 }
 
-const API_SERVICES: ApiServiceDef[] = [
-  {
-    key: 'mtn_momo', name: 'MTN Mobile Money', category: 'payment', emoji: '📱',
-    description: 'Paiements Mobile Money MTN dans la zone CEMAC',
-    fields: [
-      { key: 'api_key',    label: 'Clé API / Subscription Key', sensitive: true, placeholder: 'xxxx-xxxx-xxxx' },
-      { key: 'api_user',   label: 'API User ID', placeholder: 'uuid' },
-      { key: 'environment', label: 'Environnement', type: 'select', options: ['sandbox', 'production'] },
-      { key: 'callback_url', label: 'Callback URL', placeholder: 'https://...' },
-    ],
-  },
-  {
-    key: 'orange_money', name: 'Orange Money', category: 'payment', emoji: '🟠',
-    description: 'Paiements Orange Money CEMAC',
-    fields: [
-      { key: 'client_id',     label: 'Client ID', sensitive: true, placeholder: 'xxxx' },
-      { key: 'client_secret', label: 'Client Secret', sensitive: true, placeholder: 'xxxx' },
-      { key: 'merchant_key',  label: 'Merchant Key', sensitive: true, placeholder: 'xxxx' },
-      { key: 'environment',   label: 'Environnement', type: 'select', options: ['sandbox', 'production'] },
-    ],
-  },
-  {
-    key: 'resend_email', name: 'Resend Email', category: 'email', emoji: '📧',
-    description: 'Envoi transactionnel via Resend',
-    fields: [
-      { key: 'api_key',    label: 'Clé API Resend', sensitive: true, placeholder: 're_...' },
-      { key: 'from_email', label: 'Expéditeur', placeholder: 'noreply@cemac-integra.com' },
-    ],
-  },
-  {
-    key: 'smtp_email', name: 'SMTP (Email)', category: 'email', emoji: '✉️',
-    description: 'Configuration SMTP pour les emails',
-    fields: [
-      { key: 'host',     label: 'Hôte SMTP', placeholder: 'smtp.example.com' },
-      { key: 'port',     label: 'Port', placeholder: '587' },
-      { key: 'user',     label: 'Utilisateur', placeholder: 'user@example.com' },
-      { key: 'password', label: 'Mot de passe', sensitive: true, placeholder: '••••••' },
-    ],
-  },
-]
+const API_SERVICES: ApiServiceDef[] = []

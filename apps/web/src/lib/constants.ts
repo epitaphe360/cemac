@@ -65,10 +65,3 @@ export const SUBSCRIPTION_PLANS = {
   ENTERPRISE: 'enterprise',
   INSTITUTIONAL: 'institutional',
 } as const
-
-export const PLAN_PRICES = {
-  free: 0,
-  sme: 29000,
-  enterprise: 99000,
-  institutional: null, // Sur devis
-}

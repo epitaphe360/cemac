@@ -6,7 +6,6 @@ import {
   USER_ROLES,
   CEMAC_COUNTRIES,
   SUBSCRIPTION_PLANS,
-  PLAN_PRICES,
   APP_NAME,
   APP_VERSION,
 } from '@/lib/constants'
@@ -156,25 +155,14 @@ describe('CEMAC_COUNTRIES', () => {
   })
 })
 
-describe('SUBSCRIPTION_PLANS & PLAN_PRICES', () => {
-  it('FREE plan has zero price', () => {
-    expect(PLAN_PRICES[SUBSCRIPTION_PLANS.FREE]).toBe(0)
-  })
-
-  it('INSTITUTIONAL plan is null (quote-based)', () => {
-    expect(PLAN_PRICES[SUBSCRIPTION_PLANS.INSTITUTIONAL]).toBeNull()
-  })
-
-  it('SME plan price is positive', () => {
-    const price = PLAN_PRICES[SUBSCRIPTION_PLANS.SME]
-    expect(price).not.toBeNull()
-    expect(price as number).toBeGreaterThan(0)
-  })
-
-  it('ENTERPRISE plan is more expensive than SME', () => {
-    const sme = PLAN_PRICES[SUBSCRIPTION_PLANS.SME] as number
-    const enterprise = PLAN_PRICES[SUBSCRIPTION_PLANS.ENTERPRISE] as number
-    expect(enterprise).toBeGreaterThan(sme)
+describe('SUBSCRIPTION_PLANS', () => {
+  it('contains the supported persisted plan identifiers', () => {
+    expect(Object.values(SUBSCRIPTION_PLANS)).toEqual([
+      'free',
+      'sme',
+      'enterprise',
+      'institutional',
+    ])
   })
 })
 

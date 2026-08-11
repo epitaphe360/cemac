@@ -1,5 +1,5 @@
 import { LoadingSpinner, LoadingCard } from "@/components/shared/LoadingSpinner";
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { jsPDF } from 'jspdf'
 import {
   Truck, Package, Calculator, FileText,
@@ -16,17 +16,20 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { formatDate, cn } from '@/lib/utils'
 import type { Certification, Corridor, LogisticsAlert } from '@/types'
 import toast from 'react-hot-toast'
+import { useContentBlocks, useSiteSetting } from '@/hooks/use-cms'
+import { getPrimaryLanguage } from '@/lib/i18n-utils'
+import { asJsonObject, readLocalizedString, readString, readStringArray } from '@/lib/cms-localization'
+import type { CmsJsonObject, CmsLocale } from '@/lib/cms-types'
 
 type Tab = 'dashboard' | 'calculator' | 'eur1'
 
-const ORIGIN_RULES = {
-  cemac:  { threshold: 40, label: 'CEMAC',   accord: 'TEC CEMAC' },
-  zlecaf: { threshold: 30, label: 'ZLECAF',  accord: 'AfCFTA' },
-  eu:     { threshold: 50, label: 'UE',      accord: 'APE (Accord de Partenariat Économique)' },
-  cedeao: { threshold: 35, label: 'CEDEAO',  accord: 'TEC CEDEAO' },
-} as const
+interface OriginRule {
+  threshold: number
+  label: string
+  agreement: string
+}
 
-type Zone = keyof typeof ORIGIN_RULES
+type Zone = string
 
 interface CalcResult {
   localValue: number
@@ -37,7 +40,10 @@ interface CalcResult {
 
 export function LogisticsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
+  const locale = getPrimaryLanguage(i18n.resolvedLanguage ?? i18n.language) as CmsLocale
+  const originRulesQuery = useSiteSetting('logistics.origin_rules')
+  const eur1ContentQuery = useContentBlocks<CmsJsonObject>('logistics', locale, 'eur1')
   const entreprise = useAuthStore((s) => s.entreprise)
 
   const [certifications, setCertifications] = useState<Certification[]>([])
@@ -56,6 +62,28 @@ export function LogisticsPage() {
     certificationId: '', exporterName: '', importerName: '',
     destination: '', description: '', grossWeight: '', packages: '',
   })
+
+  const originRules = useMemo(
+    () => Object.entries(asJsonObject(originRulesQuery.data?.value) ?? {}).reduce<Record<string, OriginRule>>(
+      (rules, [key, value]) => {
+        const rule = asJsonObject(value)
+        const threshold = rule?.threshold
+        const label = readLocalizedString(rule?.label, locale) ?? readString(rule, 'label')
+        const agreement = readLocalizedString(rule?.agreement, locale) ?? readString(rule, 'agreement')
+        if (typeof threshold === 'number' && label && agreement) {
+          rules[key] = { threshold, label, agreement }
+        }
+        return rules
+      },
+      {},
+    ),
+    [locale, originRulesQuery.data?.value],
+  )
+  const availableZones = useMemo(() => Object.keys(originRules), [originRules])
+  const overview = eur1ContentQuery.data.find((block) => block.key === 'overview')?.content
+  const requiredDocuments = readStringArray(
+    eur1ContentQuery.data.find((block) => block.key === 'required-documents')?.content.items,
+  )
 
   useEffect(() => {
     // Load user certifications
@@ -78,6 +106,12 @@ export function LogisticsPage() {
     })
   }, [entreprise?.id])
 
+  useEffect(() => {
+    if (availableZones.length > 0 && !originRules[calcForm.zone]) {
+      setCalcForm((current) => ({ ...current, zone: availableZones[0] }))
+    }
+  }, [availableZones, calcForm.zone, originRules])
+
   const approvedCerts = certifications.filter((c) => c.statut === 'approved')
   const inTransit = certifications.filter((c) =>
     ['submitted', 'under_review', 'field_validation', 'commission_review'].includes(c.statut)
@@ -95,7 +129,11 @@ export function LogisticsPage() {
       return
     }
     const localValue = ((total - imported) / total) * 100
-    const rule = ORIGIN_RULES[calcForm.zone]
+    const rule = originRules[calcForm.zone]
+    if (!rule) {
+      toast.error('Référentiel des règles d’origine indisponible')
+      return
+    }
     setCalcResult({ localValue, qualifies: localValue >= rule.threshold, threshold: rule.threshold, zone: rule.label })
   }
 
@@ -388,6 +426,13 @@ export function LogisticsPage() {
               <CardDescription>{t('logistics.calculator.desc')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {originRulesQuery.loading ? (
+                <LoadingSpinner size="sm" className="py-4" />
+              ) : originRulesQuery.error ? (
+                <p role="alert" className="text-sm text-red-600">Impossible de charger les règles d’origine.</p>
+              ) : availableZones.length === 0 ? (
+                <p role="status" className="text-sm text-amber-700">Référentiel des règles d’origine indisponible.</p>
+              ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">{t('logistics.calculator.product_name')}</label>
@@ -437,15 +482,19 @@ export function LogisticsPage() {
                   value={calcForm.zone}
                   onChange={(e) => setCalcForm((p) => ({ ...p, zone: e.target.value as Zone }))}
                 >
-                  {(Object.keys(ORIGIN_RULES) as Zone[]).map((key) => (
+                  {availableZones.map((key) => (
                     <option key={key} value={key}>
-                      {ORIGIN_RULES[key].label} — seuil {ORIGIN_RULES[key].threshold}% ({ORIGIN_RULES[key].accord})
+                      {originRules[key].label} — seuil {originRules[key].threshold}% ({originRules[key].agreement})
                     </option>
                   ))}
                 </select>
               </div>
 
-              <Button onClick={handleCalculate} className="w-full">
+              <Button
+                onClick={handleCalculate}
+                className="w-full"
+                disabled={originRulesQuery.loading || Boolean(originRulesQuery.error) || availableZones.length === 0}
+              >
                 <Calculator className="h-4 w-4 mr-2" />
                 {t('logistics.calculator.btn_calculate')}
               </Button>
@@ -517,15 +566,15 @@ export function LogisticsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(Object.keys(ORIGIN_RULES) as Zone[]).map((key) => (
+                    {availableZones.map((key) => (
                       <tr key={key} className="border-b last:border-0">
-                        <td className="py-2.5 font-medium">{ORIGIN_RULES[key].label}</td>
+                        <td className="py-2.5 font-medium">{originRules[key].label}</td>
                         <td className="py-2.5 text-center">
                           <span className="bg-cemac-50 text-cemac-800 px-2 py-0.5 rounded text-xs font-semibold">
-                            {ORIGIN_RULES[key].threshold}%
+                            {originRules[key].threshold}%
                           </span>
                         </td>
-                        <td className="py-2.5 text-muted-foreground text-xs">{ORIGIN_RULES[key].accord}</td>
+                        <td className="py-2.5 text-muted-foreground text-xs">{originRules[key].agreement}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -546,7 +595,7 @@ export function LogisticsPage() {
                 {t('logistics.eur1.desc')}
               </CardDescription>
               <p className="text-xs text-amber-700">
-                Ce module génère uniquement un projet PDF local. La demande n’est pas enregistrée et le document n’est pas un certificat officiel.
+                {readString(overview, 'disclaimer') ?? 'Documentation EUR.1 indisponible.'}
               </p>
             </CardHeader>
             <CardContent>
@@ -643,48 +692,49 @@ export function LogisticsPage() {
           </Card>
 
           <div className="space-y-4">
-            <Card className="bg-cemac-700 text-white border-0">
-              <CardContent className="pt-6 space-y-3">
-                <FileText className="h-8 w-8 text-cemac-200" />
-                <h3 className="font-semibold text-lg">Certificat de circulation EUR.1</h3>
-                <p className="text-cemac-200 text-sm leading-relaxed">
-                  Le certificat EUR.1 est le titre attestant l'origine préférentielle des marchandises
-                  dans le cadre des Accords de Partenariat Économique (APE) entre l'Union Européenne
-                  et les pays ACP, permettant une réduction ou exonération des droits de douane.
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-cemac-800 rounded-lg p-3">
-                    <p className="text-xs font-semibold text-cemac-100">Délai de traitement</p>
-                    <p className="text-sm font-bold mt-0.5">3 – 5 jours ouvrés</p>
+            {eur1ContentQuery.loading ? (
+              <Card><CardContent className="py-12"><LoadingSpinner /></CardContent></Card>
+            ) : eur1ContentQuery.error ? (
+              <Card><CardContent role="alert" className="py-8 text-center text-sm text-red-600">Impossible de charger la documentation EUR.1.</CardContent></Card>
+            ) : overview ? (
+              <Card className="bg-cemac-700 text-white border-0">
+                <CardContent className="pt-6 space-y-3">
+                  <FileText className="h-8 w-8 text-cemac-200" />
+                  <h3 className="font-semibold text-lg">{readString(overview, 'title')}</h3>
+                  <p className="text-cemac-200 text-sm leading-relaxed">{readString(overview, 'description')}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-cemac-800 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-cemac-100">Délai de traitement</p>
+                      <p className="text-sm font-bold mt-0.5">{readString(overview, 'processing_time')}</p>
+                    </div>
+                    <div className="bg-cemac-800 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-cemac-100">Validité</p>
+                      <p className="text-sm font-bold mt-0.5">{readString(overview, 'validity')}</p>
+                    </div>
                   </div>
-                  <div className="bg-cemac-800 rounded-lg p-3">
-                    <p className="text-xs font-semibold text-cemac-100">Validité</p>
-                    <p className="text-sm font-bold mt-0.5">10 mois</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card><CardContent role="status" className="py-8 text-center text-sm text-muted-foreground">Documentation EUR.1 indisponible.</CardContent></Card>
+            )}
 
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Documents requis</CardTitle>
               </CardHeader>
               <CardContent>
+                {requiredDocuments.length === 0 ? (
+                  <p role="status" className="text-sm text-muted-foreground">Liste documentaire indisponible.</p>
+                ) : (
                 <ul className="space-y-2 text-sm">
-                  {[
-                    'Certification CEMAC INTEGRA approuvée',
-                    'Facture pro-forma ou commerciale',
-                    'Liste de colisage (packing list)',
-                    'Déclaration d\'exportation douanière',
-                    'Justificatif de règles d\'origine (≥ 50 % valeur locale)',
-                    'Certificat sanitaire ou phytosanitaire si requis',
-                  ].map((item) => (
+                  {requiredDocuments.map((item) => (
                     <li key={item} className="flex items-start gap-2">
                       <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
                       <span className="text-muted-foreground">{item}</span>
                     </li>
                   ))}
                 </ul>
+                )}
               </CardContent>
             </Card>
           </div>
