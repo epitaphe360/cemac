@@ -61,9 +61,10 @@ CEMAC INTEGRA est une application web full-stack qui digitalise les processus d'
 - Mécanisme de fallback avec données statiques en cas d'indisponibilité de l'API
 
 ### Abonnements & Paiements (Stripe)
-- Intégration de Stripe Checkout pour la souscription aux plans (Pro, Enterprise)
-- Edge Function Supabase (`create-checkout-session`) pour générer les liens de paiement sécurisés
-- Mise à niveau du plan dans la page "Paramètres" (`SettingsPage`)
+- Stripe Checkout mensuel/annuel et portail client, désactivés par défaut
+- Webhook signé et idempotent pour abonnements, paiements et factures Stripe
+- Statut synchronisé dans Paramètres et Facturation; tarifs affichés issus du CMS
+- Plans institutionnels et souscriptions manuelles inchangés
 
 ### Administration
 - Back-office `super_admin` : gestion des utilisateurs, entreprises, certifications
@@ -249,13 +250,13 @@ VITE_SUPABASE_URL=https://<votre-projet>.supabase.co
 VITE_SUPABASE_ANON_KEY=<votre-clé-anon>
 VITE_APP_ENV=development
 
-# Configuration Stripe pour les abonnements
-VITE_STRIPE_PUBLISHABLE_KEY=pk_test_votreclepublique
-VITE_STRIPE_PRICE_SME=price_1XYZ
-VITE_STRIPE_PRICE_ENTERPRISE=price_2XYZ
+# Fail-closed; activer seulement après configuration serveur et tests Stripe
+VITE_PAYMENTS_ENABLED=false
 ```
 
-> **Note :** Le fichier `.env` est dans `.gitignore` et ne sera jamais commité. Pour la production, les variables sont dans `vercel.json` et dans les secrets GitHub Actions.
+> **Note :** Aucun secret ni Price ID Stripe ne va dans le client, le CMS ou la
+> base. Ils sont configurés comme secrets Edge Function selon
+> `supabase/SECRETS.md`. Le fichier `.env` est dans `.gitignore`.
 
 ---
 

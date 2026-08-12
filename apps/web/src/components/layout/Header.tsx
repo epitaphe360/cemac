@@ -9,16 +9,19 @@ import toast from 'react-hot-toast'
 import type { Notification } from '@/types'
 
 interface HeaderProps {
+  isMenuOpen: boolean
   onMenuClick: () => void
 }
 
-export function Header({ onMenuClick }: HeaderProps) {
+export function Header({ isMenuOpen, onMenuClick }: Readonly<HeaderProps>) {
   const { i18n, t } = useTranslation()
   const profile = useAuthStore((s) => s.profile)
   const currentLanguage = getPrimaryLanguage(i18n.resolvedLanguage ?? i18n.language)
   const [notifs, setNotifs] = useState<Notification[]>([])
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
+  const notifButtonRef = useRef<HTMLButtonElement>(null)
+  const notifCloseRef = useRef<HTMLButtonElement>(null)
 
   const toggleLang = () => {
     i18n.changeLanguage(currentLanguage === 'fr' ? 'en' : 'fr')
@@ -42,16 +45,30 @@ export function Header({ onMenuClick }: HeaderProps) {
       })
   }, [profile?.id, t])
 
-  // Close dropdown on outside click
+  // Close the notification popover on outside click or Escape.
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
+    const handlePointerDown = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setNotifOpen(false)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && notifOpen) {
+        setNotifOpen(false)
+        notifButtonRef.current?.focus()
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [notifOpen])
+
+  useEffect(() => {
+    if (notifOpen) notifCloseRef.current?.focus()
+  }, [notifOpen])
 
   const unreadCount = notifs.filter((n) => !n.read).length
 
@@ -69,9 +86,12 @@ export function Header({ onMenuClick }: HeaderProps) {
     <header className="sticky top-0 z-20 h-20 shrink-0 px-3 pt-3 sm:px-5 lg:px-6">
       <div className="flex h-full items-center justify-between rounded-[24px] border border-white/80 bg-white/80 px-4 shadow-[0_10px_30px_rgba(8,40,35,0.08)] backdrop-blur-xl lg:px-6">
         <button
+          type="button"
           onClick={onMenuClick}
           aria-label={t('header.open_menu')}
-          className="lg:hidden rounded-xl p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-500"
+          aria-expanded={isMenuOpen}
+          aria-controls="app-sidebar"
+          className="lg:hidden rounded-xl p-2.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-500 focus-visible:ring-offset-2"
         >
           <Menu className="h-5 w-5" />
         </button>
@@ -83,8 +103,10 @@ export function Header({ onMenuClick }: HeaderProps) {
         <div className="flex items-center gap-2">
         {/* Toggle langue */}
         <button
+          type="button"
           onClick={toggleLang}
-          className="flex items-center gap-1 rounded-xl border border-gray-200/80 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          aria-label={t('landing.nav.change_language', 'Changer de langue')}
+          className="flex min-h-10 items-center gap-1.5 rounded-xl border border-gray-200/80 bg-white/70 px-2.5 py-2 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-500 focus-visible:ring-offset-2 sm:px-3"
         >
           <Globe className="h-3.5 w-3.5" />
           {currentLanguage.toUpperCase()}
@@ -93,9 +115,14 @@ export function Header({ onMenuClick }: HeaderProps) {
         {/* Notifications */}
         <div ref={notifRef} className="relative">
           <button
-            onClick={() => { setNotifOpen((o) => !o); if (!notifOpen && unreadCount > 0) markAllRead() }}
+            type="button"
+            ref={notifButtonRef}
+            onClick={() => setNotifOpen((open) => !open)}
             aria-label={t('header.notifications')}
-            className="relative rounded-xl border border-gray-200/80 bg-white/70 p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-500"
+            aria-expanded={notifOpen}
+            aria-haspopup="dialog"
+            aria-controls="notification-panel"
+            className="relative min-h-10 min-w-10 rounded-xl border border-gray-200/80 bg-white/70 p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-500 focus-visible:ring-offset-2"
           >
             <Bell className="h-5 w-5" />
             {unreadCount > 0 && (
@@ -106,19 +133,44 @@ export function Header({ onMenuClick }: HeaderProps) {
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 top-12 z-50 w-80 rounded-2xl border border-gray-200 bg-white shadow-xl overflow-hidden">
+            <div
+              id="notification-panel"
+              role="dialog"
+              aria-modal="false"
+              aria-labelledby="notification-title"
+              className="fixed inset-x-2 top-[4.75rem] z-50 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-80"
+            >
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                <p className="text-sm font-semibold text-gray-900">{t('header.notifications')}</p>
+                <p id="notification-title" className="text-sm font-semibold text-gray-900">{t('header.notifications')}</p>
                 <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={markAllRead}
+                      className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-cemac-700 hover:bg-cemac-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-500"
+                    >
+                      <CheckCheck className="h-3.5 w-3.5" />
+                      {t('header.mark_all_read', 'Tout marquer comme lu')}
+                    </button>
+                  )}
                   {unreadCount === 0 && notifs.length > 0 && (
                     <span className="text-xs text-gray-400 flex items-center gap-1"><CheckCheck className="h-3 w-3" />{t('header.all_read')}</span>
                   )}
-                  <button onClick={() => setNotifOpen(false)} className="text-gray-400 hover:text-gray-600">
+                  <button
+                    ref={notifCloseRef}
+                    type="button"
+                    onClick={() => {
+                      setNotifOpen(false)
+                      notifButtonRef.current?.focus()
+                    }}
+                    aria-label={t('header.close_notifications', 'Fermer les notifications')}
+                    className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-500"
+                  >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               </div>
-              <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+              <div className="max-h-[min(18rem,calc(100vh-9rem))] overflow-y-auto divide-y divide-gray-50" aria-live="polite">
                 {notifs.length === 0 ? (
                   <div className="py-10 text-center text-sm text-gray-400">{t('header.no_notifications')}</div>
                 ) : notifs.map((n) => (

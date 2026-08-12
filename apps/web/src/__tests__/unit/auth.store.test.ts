@@ -142,6 +142,36 @@ describe('useAuthStore — initialize()', () => {
   })
 })
 
+describe('useAuthStore — refreshEntreprise()', () => {
+  beforeEach(() => resetStore())
+
+  it('reloads the authenticated company lifecycle from Supabase', async () => {
+    const { supabase } = await import('@/lib/supabase')
+    const refreshed = {
+      id: 'ent-1',
+      owner_id: 'u1',
+      subscription_plan: 'sme',
+      subscription_status: 'active',
+    }
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: refreshed, error: null }),
+    } as any)
+    useAuthStore.setState({
+      user: { id: 'u1' } as any,
+      profile: { id: 'u1', role: 'company_admin' } as any,
+    })
+
+    await act(async () => {
+      await useAuthStore.getState().refreshEntreprise()
+    })
+    expect(useAuthStore.getState().entreprise).toMatchObject({
+      subscription_status: 'active',
+    })
+  })
+})
+
 describe('useAuthStore — logout()', () => {
   beforeEach(() => resetStore())
 

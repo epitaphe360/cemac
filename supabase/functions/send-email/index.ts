@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2?target=deno'
 import { corsHeaders, isOriginAllowed } from '../_shared/cors.ts'
+import { enforceRateLimits } from '../_shared/rate-limit.ts'
 
 type Role =
   | 'super_admin'
@@ -55,10 +56,20 @@ const statusLabels: Record<string, string> = {
   expired: 'Expiré',
 }
 
-function json(req: Request, body: unknown, status = 200): Response {
+function json(
+  req: Request,
+  body: unknown,
+  status = 200,
+  extraHeaders: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
+    headers: {
+      ...corsHeaders(req),
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      ...extraHeaders,
+    },
   })
 }
 
@@ -100,14 +111,15 @@ function welcomeHtml(fullName: string): string {
 async function authenticate(req: Request): Promise<{
   internal: boolean
   role: Role | null
+  userId: string | null
   userClient: SupabaseClient | null
 }> {
   const authorization = req.headers.get('Authorization') ?? ''
   const token = authorization.replace(/^Bearer\s+/i, '')
 
-  if (!token) return { internal: false, role: null, userClient: null }
+  if (!token) return { internal: false, role: null, userId: null, userClient: null }
   if (serviceRoleKey && token === serviceRoleKey) {
-    return { internal: true, role: null, userClient: null }
+    return { internal: true, role: null, userId: null, userClient: null }
   }
 
   const userClient = createClient(
@@ -119,7 +131,7 @@ async function authenticate(req: Request): Promise<{
     },
   )
   const { data: { user }, error } = await userClient.auth.getUser(token)
-  if (error || !user) return { internal: false, role: null, userClient: null }
+  if (error || !user) return { internal: false, role: null, userId: null, userClient: null }
 
   const { data: profile } = await admin
     .from('profiles')
@@ -132,8 +144,20 @@ async function authenticate(req: Request): Promise<{
     role: profile && !profile.password_reset_required
       ? (profile.role as Role)
       : null,
+    userId: user.id,
     userClient,
   }
+}
+
+async function notificationEnabled(userId: string, preference: string): Promise<boolean> {
+  const { data, error } = await admin.rpc('user_notification_enabled', {
+    p_user_id: userId,
+    p_preference: preference,
+  })
+  if (error || typeof data !== 'boolean') {
+    throw new Error('Notification preference check failed')
+  }
+  return data
 }
 
 async function sendEmail(payload: DirectPayload): Promise<string> {
@@ -192,6 +216,21 @@ serve(async (req: Request) => {
   try {
     const payload = await req.json() as Payload
 
+    if (!caller.internal && caller.userId) {
+      const rateLimit = await enforceRateLimits(admin, [
+        { scope: 'email:user:minute', identity: caller.userId, limit: 10, windowSeconds: 60 },
+        { scope: 'email:user:day', identity: caller.userId, limit: 100, windowSeconds: 86_400 },
+      ])
+      if (!rateLimit.allowed) {
+        return json(
+          req,
+          { error: 'Too many requests', retryAfter: rateLimit.retryAfter },
+          429,
+          { 'Retry-After': String(rateLimit.retryAfter) },
+        )
+      }
+    }
+
     if ('type' in payload && payload.type === 'certification_status') {
       if (
         !caller.internal &&
@@ -237,6 +276,19 @@ serve(async (req: Request) => {
       if (!recipient) return json(req, { error: 'Recipient not found' }, 404)
 
       const label = statusLabels[certification.statut] ?? certification.statut
+      await admin.from('notifications').insert({
+        user_id: entreprise.owner_id,
+        type: 'certification_status',
+        title: `Statut mis à jour : ${label}`,
+        body: `Votre dossier ${certification.numero_dossier} est maintenant : ${label}`,
+        message: `Votre dossier ${certification.numero_dossier} est maintenant : ${label}`,
+        certification_id: certification.id,
+      })
+
+      if (!await notificationEnabled(entreprise.owner_id, 'cert_status_change')) {
+        return json(req, { skipped: true, reason: 'preference_disabled' })
+      }
+
       const id = await sendEmail({
         to: recipient,
         subject: `Dossier ${certification.numero_dossier} — ${label}`,
@@ -245,15 +297,6 @@ serve(async (req: Request) => {
           certification.produit_nom,
           certification.statut,
         ),
-      })
-
-      await admin.from('notifications').insert({
-        user_id: entreprise.owner_id,
-        type: 'certification_status',
-        title: `Statut mis à jour : ${label}`,
-        body: `Votre dossier ${certification.numero_dossier} est maintenant : ${label}`,
-        message: `Votre dossier ${certification.numero_dossier} est maintenant : ${label}`,
-        certification_id: certification.id,
       })
 
       return json(req, { id })

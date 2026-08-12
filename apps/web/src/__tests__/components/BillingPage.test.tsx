@@ -23,6 +23,11 @@ const invoice = {
   paid_at: '2026-01-02T00:00:00Z',
   notes: null,
   pdf_url: null,
+  stripe_invoice_id: 'in_test123',
+  stripe_subscription_id: 'sub_test123',
+  stripe_payment_intent_id: 'pi_test123',
+  hosted_invoice_url: 'https://invoice.stripe.com/i/test',
+  stripe_invoice_pdf_url: null,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-02T00:00:00Z',
 }
@@ -65,5 +70,10 @@ describe('BillingPage CMS tax rates', () => {
     expect(await screen.findByText(
       (_, element) => element?.tagName === 'P' && element.textContent?.includes('+ TVA 17.5% =') === true,
     )).toBeInTheDocument()
+    expect(await screen.findByText('Facture Stripe')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /stripe/i })).toHaveAttribute(
+      'href',
+      'https://invoice.stripe.com/i/test',
+    )
   })
 })

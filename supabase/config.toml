@@ -7,7 +7,18 @@ sql_paths = ["./seed.sql"]
 [functions.send-email]
 verify_jwt = true
 
+[functions.submit-contact]
+# Public intake. The function applies exact-origin CORS, strict validation,
+# honeypot handling and service-role-only database rate limits.
+verify_jwt = false
+
+[functions.security-health]
+verify_jwt = true
+
 [functions.create-checkout-session]
+verify_jwt = true
+
+[functions.create-customer-portal-session]
 verify_jwt = true
 
 # Stripe cannot attach a Supabase JWT. This endpoint authenticates exclusively

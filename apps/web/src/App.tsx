@@ -30,13 +30,15 @@ const NewCertificationPage        = lazy(() => import('@/pages/certification/New
 const MarketplacePage             = lazy(() => import('@/pages/marketplace/MarketplacePage').then(m => ({ default: m.MarketplacePage })))
 const MarketplaceProductDetailPage = lazy(() => import('@/pages/marketplace/MarketplaceProductDetailPage').then(m => ({ default: m.MarketplaceProductDetailPage })))
 const LogisticsPage               = lazy(() => import('@/pages/logistics/LogisticsPage').then(m => ({ default: m.LogisticsPage })))
+const ExpeditionFormPage          = lazy(() => import('@/pages/logistics/ExpeditionFormPage').then(m => ({ default: m.ExpeditionFormPage })))
+const ExpeditionDetailPage        = lazy(() => import('@/pages/logistics/ExpeditionDetailPage').then(m => ({ default: m.ExpeditionDetailPage })))
+const ConvoysPage                 = lazy(() => import('@/pages/logistics/ConvoysPage').then(m => ({ default: m.ConvoysPage })))
 const MarketIntelligencePage      = lazy(() => import('@/pages/market-intelligence/MarketIntelligencePage').then(m => ({ default: m.MarketIntelligencePage })))
 const AdminPage                   = lazy(() => import('@/pages/admin/AdminPage').then(m => ({ default: m.AdminPage })))
 const SettingsPage                = lazy(() => import('@/pages/settings/SettingsPage').then(m => ({ default: m.SettingsPage })))
 const BillingPage                 = lazy(() => import('@/pages/billing/BillingPage').then(m => ({ default: m.BillingPage })))
 const ProductsPage                = lazy(() => import('@/pages/products/ProductsPage').then(m => ({ default: m.ProductsPage })))
 const VerifyCertificationPage     = lazy(() => import('@/pages/verify/VerifyCertificationPage').then(m => ({ default: m.VerifyCertificationPage })))
-const PlaceholderPage             = lazy(() => import('@/pages/PlaceholderPage').then(m => ({ default: m.PlaceholderPage })))
 
 export default function App() {
   const { initialize, isInitialized, setSession, setUser } = useAuthStore()
@@ -103,6 +105,22 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="/logistics"          element={<LogisticsPage />} />
+          <Route path="/logistics/convoys" element={
+            <ProtectedRoute requiredRoles={['logistics_agent', 'chamber_agent', 'cemac_officer', 'super_admin']}>
+              <ConvoysPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/logistics/new" element={
+            <ProtectedRoute requiredRoles={['company_admin']}>
+              <ExpeditionFormPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/logistics/:id/edit" element={
+            <ProtectedRoute requiredRoles={['company_admin']}>
+              <ExpeditionFormPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/logistics/:id"      element={<ExpeditionDetailPage />} />
           <Route path="/market-intelligence" element={<MarketIntelligencePage />} />
           <Route path="/admin" element={
             <ProtectedRoute requiredRoles={['super_admin', 'cemac_officer', 'chamber_agent']}>

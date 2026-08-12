@@ -16,8 +16,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { usePricing } from '@/hooks/use-cms'
+import { usePayments } from '@/hooks/use-payments'
 import { CEMAC_COUNTRIES } from '@/lib/constants'
-import { findPricingPlan, getUpgradePlans } from '@/lib/pricing'
+import {
+  findPricingPlan,
+  formatPlanPrice,
+  getPlanPrice,
+  getUpgradePlans,
+  type BillingPeriod,
+} from '@/lib/pricing'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 
@@ -101,17 +108,6 @@ export function SettingsPage() {
     }
     return 'profile'
   })
-
-  // Show success toast once when Stripe redirects back
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('checkout') === 'success') {
-      const planLabel = params.get('plan') ?? 'sme'
-      toast.success(t('settings.toasts.subscription_success', { plan: planLabel }))
-      // Clean URL without reload
-      window.history.replaceState({}, '', window.location.pathname)
-    }
-  }, [t])
 
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl">
@@ -528,12 +524,17 @@ function NotificationsTab() {
     if (!profile) return
     const raw = profile.notification_preferences
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-      setPrefs({ ...DEFAULT_NOTIFS, ...(raw as Partial<typeof DEFAULT_NOTIFS>) })
+      setPrefs({
+        ...DEFAULT_NOTIFS,
+        ...(raw as Partial<typeof DEFAULT_NOTIFS>),
+        security_alert: true,
+      })
     }
     setLoading(false)
   }, [profile])
 
   const toggle = (key: keyof typeof DEFAULT_NOTIFS) => {
+    if (key === 'security_alert') return
     setPrefs((p) => ({ ...p, [key]: !p[key] }))
   }
 
@@ -542,7 +543,10 @@ function NotificationsTab() {
     setSaving(true)
     const { error } = await supabase
       .from('profiles')
-      .update({ notification_preferences: prefs, updated_at: new Date().toISOString() })
+      .update({
+        notification_preferences: { ...prefs, security_alert: true },
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', profile.id)
     setSaving(false)
     if (error) {
@@ -586,8 +590,14 @@ function NotificationsTab() {
                   type="button"
                   aria-label={label}
                   onClick={() => toggle(key)}
+                  disabled={key === 'security_alert'}
+                  aria-disabled={key === 'security_alert'}
+                  title={key === 'security_alert'
+                    ? (t('settings.notifications.security_mandatory', 'Obligatoire pour protéger votre compte'))
+                    : undefined}
                   className={cn(
                     'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none',
+                    key === 'security_alert' && 'cursor-not-allowed opacity-70',
                     prefs[key] ? 'bg-cemac-700' : 'bg-gray-200'
                   )}
                 >
@@ -617,11 +627,45 @@ function NotificationsTab() {
 function PlanTab() {
   const { t, i18n } = useTranslation()
   const entreprise = useAuthStore((s) => s.entreprise)
+  const refreshEntreprise = useAuthStore((s) => s.refreshEntreprise)
+  const [period, setPeriod] = useState<BillingPeriod>('monthly')
+  const [syncing, setSyncing] = useState(
+    () => new URLSearchParams(window.location.search).get('checkout') === 'success',
+  )
+  const payments = usePayments(entreprise?.id)
   const currentPlan = entreprise?.subscription_plan ?? 'free'
   const locale = (i18n.resolvedLanguage ?? i18n.language).toLowerCase().startsWith('en') ? 'en' : 'fr'
   const pricing = usePricing(locale)
   const currentPlanInfo = findPricingPlan(pricing.data.plans, currentPlan)
   const upgradePlans = getUpgradePlans(pricing.data.plans)
+
+  useEffect(() => {
+    if (!syncing) return
+    let attempts = 0
+    let cancelled = false
+    const poll = async () => {
+      attempts += 1
+      try {
+        const updated = await refreshEntreprise()
+        if (cancelled) return
+        if (updated?.subscription_status === 'active' || attempts >= 15) {
+          setSyncing(false)
+          window.history.replaceState({}, '', '/settings?tab=plan')
+          if (updated?.subscription_status === 'active') {
+            toast.success('Abonnement Stripe activé.')
+          } else {
+            toast('Le paiement est encore en cours de synchronisation.')
+          }
+          return
+        }
+      } catch {
+        if (attempts >= 15 && !cancelled) setSyncing(false)
+      }
+      if (!cancelled) window.setTimeout(poll, 2_000)
+    }
+    void poll()
+    return () => { cancelled = true }
+  }, [refreshEntreprise, syncing])
 
   if (pricing.loading) {
     return (
@@ -665,6 +709,11 @@ function PlanTab() {
           <CardTitle className="text-base">{t('settings.plan.current_plan')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {syncing && (
+            <div role="status" className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              Confirmation du paiement en cours…
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div>
               <span className={cn(
@@ -678,6 +727,16 @@ function PlanTab() {
               <a href="/tarifs" className="text-sm text-cemac-700 hover:underline font-medium">
                 {t('settings.plan.view_offers')} →
               </a>
+            )}
+          </div>
+          <div className="grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
+            <p>Statut : <strong>{entreprise?.subscription_status ?? 'inactive'}</strong></p>
+            <p>Période : <strong>{entreprise?.subscription_period === 'yearly' ? 'annuelle' : entreprise?.subscription_period === 'monthly' ? 'mensuelle' : '—'}</strong></p>
+            {entreprise?.subscription_current_period_end && (
+              <p className="sm:col-span-2">
+                {entreprise.subscription_cancel_at_period_end ? 'Résiliation effective' : 'Renouvellement prévu'} le{' '}
+                {new Date(entreprise.subscription_current_period_end).toLocaleDateString('fr-FR')}
+              </p>
             )}
           </div>
 
@@ -698,6 +757,23 @@ function PlanTab() {
       {/* Upgrade section — only for free plan */}
       {currentPlan === 'free' && (
         <>
+          {payments.paymentsEnabled && (
+            <div className="inline-flex rounded-xl bg-gray-100 p-1">
+              {(['monthly', 'yearly'] as BillingPeriod[]).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setPeriod(value)}
+                  className={cn(
+                    'rounded-lg px-4 py-2 text-sm font-semibold',
+                    period === value ? 'bg-white text-cemac-800 shadow-sm' : 'text-gray-500',
+                  )}
+                >
+                  {value === 'monthly' ? 'Mensuel' : 'Annuel'}
+                </button>
+              ))}
+            </div>
+          )}
           {/* Offers */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {upgradePlans.map((plan) => (
@@ -710,7 +786,15 @@ function PlanTab() {
                   <CardDescription className="text-xs">{plan.description}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-lg font-bold text-cemac-800">{plan.price}</p>
+                  <p className="text-lg font-bold text-cemac-800">
+                    {payments.paymentsEnabled
+                      ? formatPlanPrice(
+                          getPlanPrice(pricing.data.plans, plan.id, period),
+                          period,
+                          findPricingPlan(pricing.data.plans, plan.id)?.currency,
+                        )
+                      : plan.price}
+                  </p>
                   <ul className="space-y-1">
                     {plan.highlights.map((h) => (
                       <li key={h} className="flex items-center gap-2 text-xs text-gray-600">
@@ -719,13 +803,23 @@ function PlanTab() {
                       </li>
                     ))}
                   </ul>
+                  {payments.paymentsEnabled && (plan.id === 'sme' || plan.id === 'enterprise') && (
+                    <Button
+                      type="button"
+                      className="w-full"
+                      loading={payments.pendingAction === `checkout:${plan.id}:${period}`}
+                      onClick={() => void payments.checkout(plan.id as 'sme' | 'enterprise', period)}
+                    >
+                      Souscrire
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ))}
           </div>
 
           {/* Payment availability */}
-          <Card className="border-amber-200 bg-amber-50/40">
+          {!payments.paymentsEnabled && <Card className="border-amber-200 bg-amber-50/40">
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-cemac-600" />
@@ -740,7 +834,10 @@ function PlanTab() {
                 Contacter l’équipe commerciale →
               </a>
             </CardContent>
-          </Card>
+          </Card>}
+          {payments.error && (
+            <p role="alert" className="text-sm text-red-700">{payments.error.message}</p>
+          )}
 
           {/* Contact CTA */}
           <Card className="border-cemac-200 bg-cemac-50/40">
@@ -776,13 +873,21 @@ function PlanTab() {
               <p className="text-xs mt-0.5">
                 {t('settings.plan.manage_description')}
               </p>
-              <a
-                href="/contact"
-                className="mt-2 inline-flex items-center gap-1 text-xs text-cemac-700 hover:underline"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Contacter le support
-              </a>
+              {payments.paymentsEnabled ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-3"
+                  loading={payments.pendingAction === 'portal'}
+                  onClick={() => void payments.openPortal()}
+                >
+                  Gérer dans Stripe
+                </Button>
+              ) : (
+                <a href="/contact" className="mt-2 inline-flex items-center gap-1 text-xs text-cemac-700 hover:underline">
+                  <ExternalLink className="h-3 w-3" /> Contacter le support
+                </a>
+              )}
             </div>
           </CardContent>
         </Card>

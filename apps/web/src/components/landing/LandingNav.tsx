@@ -30,15 +30,23 @@ export function LandingNav() {
 
   useEffect(() => {
     setMenuOpen(false)
-  }, [location.pathname])
+    setLangOpen(false)
+  }, [location.pathname, location.hash])
+
+  useEffect(() => {
+    if (!location.hash) return
+    const id = decodeURIComponent(location.hash.slice(1))
+    const timer = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
+    return () => window.clearTimeout(timer)
+  }, [location.pathname, location.hash])
 
   const handleAnchor = (href: string) => {
     if (href.startsWith('/#')) {
-      if (location.pathname !== '/') {
-        navigate('/')
-        setTimeout(() => {
-          document.getElementById(href.slice(2))?.scrollIntoView({ behavior: 'smooth' })
-        }, 100)
+      const hash = href.slice(1)
+      if (location.pathname !== '/' || location.hash !== hash) {
+        navigate({ pathname: '/', hash })
       } else {
         document.getElementById(href.slice(2))?.scrollIntoView({ behavior: 'smooth' })
       }
@@ -52,7 +60,7 @@ export function LandingNav() {
     <>
       <nav
         aria-label="Navigation principale"
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        className={`fixed top-0 left-0 right-0 z-50 border-b transition-all duration-300 ${
         scrolled ? 'bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100' : 'bg-transparent border-b border-transparent'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -83,7 +91,8 @@ export function LandingNav() {
                 <button
                   key={link.href}
                   onClick={() => handleAnchor(link.href)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  aria-current={!link.href.startsWith('/#') && location.pathname === link.href ? 'page' : undefined}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400 ${
                     scrolled ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-50' : 'text-white/80 hover:text-white hover:bg-white/10'
                   }`}
                 >
@@ -104,9 +113,9 @@ export function LandingNav() {
                     scrolled ? 'text-gray-600 hover:bg-gray-100' : 'text-white hover:bg-white/10'
                   }`}
                 >
-                  <Globe size={15} />
+                  <Globe size={15} aria-hidden />
                   <span>{currentLanguage.toUpperCase()}</span>
-                  <ChevronDown size={13} />
+                  <ChevronDown size={13} aria-hidden />
                 </button>
                 {langOpen && (
                   <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-gray-100 py-1 w-28 z-50">
@@ -140,7 +149,7 @@ export function LandingNav() {
                     className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all border ${
                       scrolled
                         ? 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                        : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                        : 'border-white/40 bg-black/20 text-white hover:bg-white/10'
                     }`}
                   >
                     {t('landing.nav.login')}
@@ -172,8 +181,8 @@ export function LandingNav() {
 
       {/* Mobile menu overlay */}
       {menuOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setMenuOpen(false)} />
+        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label={t('landing.nav.open_menu')}>
+          <button type="button" className="absolute inset-0 w-full bg-black/60" onClick={() => setMenuOpen(false)} aria-label={t('landing.nav.close_menu')} />
           <div className="absolute top-0 left-0 right-0 bg-white shadow-2xl rounded-b-3xl p-6 pt-20">
             <div className="flex flex-col gap-1 mb-6">
               {navLinks.map((link) => (

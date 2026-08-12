@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { usePricing } from '@/hooks/use-cms'
 import { formatPlanPrice } from '@/lib/pricing'
+import { paymentsEnabled } from '@/lib/payments'
 
 const PLAN_STYLES: Record<string, { color: string; headerBg: string; cta: string }> = {
   free: {
@@ -49,7 +50,9 @@ export function PricingPage() {
             </span>
           </h1>
           <p className="relative text-cemac-200 text-lg mb-10">
-            Tarifs en XAF. La souscription aux plans payants est actuellement traitée avec notre équipe commerciale.
+            {paymentsEnabled
+              ? 'Tarifs en XAF. Créez votre compte puis souscrivez en ligne de façon sécurisée.'
+              : 'Tarifs en XAF. La souscription aux plans payants est actuellement traitée avec notre équipe commerciale.'}
           </p>
 
           {/* Toggle */}
@@ -107,6 +110,15 @@ export function PricingPage() {
               const price = yearly ? plan.yearlyPrice : plan.monthlyPrice
               const period = yearly ? '/ an' : '/ mois'
               const style = PLAN_STYLES[plan.id] ?? PLAN_STYLES.enterprise
+              const isPaidSelfServicePlan = plan.id === 'sme' || plan.id === 'enterprise'
+              const ctaHref = isPaidSelfServicePlan
+                ? (paymentsEnabled
+                    ? `/auth/register?plan=${plan.id}&period=${yearly ? 'yearly' : 'monthly'}`
+                    : '/contact?reason=abonnement')
+                : plan.cta.href
+              const ctaLabel = isPaidSelfServicePlan
+                ? (paymentsEnabled ? 'Créer un compte et souscrire' : 'Contacter l’équipe commerciale')
+                : plan.cta.label
 
               return (
                 <div
@@ -147,12 +159,12 @@ export function PricingPage() {
                         </li>
                       ))}
                     </ul>
-                    {plan.cta.href && plan.cta.label ? (
+                    {ctaHref && ctaLabel ? (
                       <Link
-                        to={plan.cta.href}
+                        to={ctaHref}
                         className={`w-full py-3.5 px-6 rounded-xl font-bold text-center transition-all flex items-center justify-center gap-2 ${style.cta}`}
                       >
-                        {plan.cta.label}
+                        {ctaLabel}
                         <ArrowRight size={16} />
                       </Link>
                     ) : (

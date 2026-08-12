@@ -1,0 +1,88 @@
+name: Supabase CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: supabase-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20.19'
+
+jobs:
+  supabase-rls:
+    name: Ephemeral Supabase + RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production dependency audit (high+)
+        run: npm audit --omit=dev --audit-level=high
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Start ephemeral Supabase
+        run: npx supabase start
+
+      - name: Export local stack credentials
+        run: |
+          set -euo pipefail
+          npx supabase status -o env > /tmp/supabase.env
+          # Fail closed if any hosted production host leaks into local status.
+          if grep -qiE 'supabase\.co' /tmp/supabase.env; then
+            echo "Refusing to continue: supabase status reported a supabase.co host"
+            cat /tmp/supabase.env
+            exit 1
+          fi
+          # shellcheck disable=SC1091
+          set -a
+          # shellcheck disable=SC1090
+          source /tmp/supabase.env
+          set +a
+          {
+            echo "SUPABASE_URL=${API_URL}"
+            echo "API_URL=${API_URL}"
+            echo "SUPABASE_ANON_KEY=${ANON_KEY}"
+            echo "ANON_KEY=${ANON_KEY}"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            echo "DB_URL=${DB_URL}"
+          } >> "$GITHUB_ENV"
+
+      - name: RLS / RPC integration tests (local stack only)
+        run: npm run test:rls
+
+      - name: Deno shared security unit tests
+        run: |
+          set -euo pipefail
+          if ! command -v deno >/dev/null 2>&1; then
+            echo "Deno is required for supabase/functions/_shared/security_test.ts"
+            exit 1
+          fi
+          deno test \
+            --allow-env \
+            --allow-net \
+            --allow-read \
+            supabase/functions/_shared/security_test.ts
+
+      - name: Stop ephemeral Supabase
+        if: always()
+        run: npx supabase stop

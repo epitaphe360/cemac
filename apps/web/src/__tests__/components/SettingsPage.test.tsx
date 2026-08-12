@@ -25,6 +25,7 @@ vi.mock('@/stores/auth.store', () => ({
       },
       setProfile:     vi.fn(),
       setEntreprise:  vi.fn(),
+      refreshEntreprise: vi.fn(),
     }),
 }))
 
@@ -222,6 +223,15 @@ describe('SettingsPage — notifications tab (Supabase persistence)', () => {
     })
   })
 
+  it('keeps security alerts enabled and non-interactive', async () => {
+    renderSettings()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /notifications/i }))
+    const securityToggle = await screen.findByRole('button', { name: /alertes de sécurité/i })
+    expect(securityToggle).toBeDisabled()
+    expect(securityToggle).toHaveAttribute('aria-disabled', 'true')
+  })
+
   it('save button calls supabase profiles.update with notification_preferences', async () => {
     const { supabase } = await import('@/lib/supabase')
     const updateMock = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
@@ -242,7 +252,9 @@ describe('SettingsPage — notifications tab (Supabase persistence)', () => {
     await waitFor(() => {
       expect(supabase.from).toHaveBeenCalledWith('profiles')
       expect(updateMock).toHaveBeenCalledWith(
-        expect.objectContaining({ notification_preferences: expect.any(Object) }),
+        expect.objectContaining({
+          notification_preferences: expect.objectContaining({ security_alert: true }),
+        }),
       )
     })
   })
@@ -303,5 +315,13 @@ describe('SettingsPage — plan tab', () => {
     // Check if the plan levels appear
       const plans = screen.getAllByText(/starter|pro/i)
       expect(plans.length).toBeGreaterThan(0)
+  })
+
+  it('keeps self-service checkout hidden while the feature flag is disabled', async () => {
+    renderSettings()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /abonnement/i }))
+    expect(screen.getByText(/paiement en libre-service n’est pas encore activé/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^souscrire$/i })).not.toBeInTheDocument()
   })
 })

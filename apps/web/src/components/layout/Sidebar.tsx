@@ -7,13 +7,15 @@ import {
 import { useAuthStore } from '@/stores/auth.store'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
+import { useEffect, useRef } from 'react'
+import { LogoMark } from '@/components/shared/LogoMark'
 
 interface SidebarProps {
   isOpen: boolean
   onClose: () => void
 }
 
-const ADMIN_ROLES = ['super_admin', 'cemac_officer', 'chamber_agent']
+const ADMIN_ROLES = new Set(['super_admin', 'cemac_officer', 'chamber_agent'])
 
 const nav = [
   { to: '/dashboard',           icon: LayoutDashboard, labelKey: 'nav.dashboard' },
@@ -23,12 +25,56 @@ const nav = [
   { to: '/market-intelligence', icon: BarChart3,       labelKey: 'nav.market' },
 ]
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+export function Sidebar({ isOpen, onClose }: Readonly<SidebarProps>) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const logout = useAuthStore((s) => s.logout)
   const profile = useAuthStore((s) => s.profile)
   const entreprise = useAuthStore((s) => s.entreprise)
+  const sidebarRef = useRef<HTMLElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    closeButtonRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+
+      if (event.key !== 'Tab' || !sidebarRef.current) return
+      const focusable = Array.from(
+        sidebarRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      )
+      if (focusable.length === 0) return
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKeyDown)
+      previouslyFocused?.focus()
+    }
+  }, [isOpen, onClose])
 
   const handleLogout = async () => {
     await logout()
@@ -37,20 +83,27 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   }
 
   const userRole = profile?.role ?? 'public'
-  const isAdmin = ADMIN_ROLES.includes(userRole)
+  const isAdmin = ADMIN_ROLES.has(userRole)
 
   return (
     <>
       {/* Overlay mobile */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          aria-hidden="true"
+          className="fixed inset-0 z-20 bg-black/55 backdrop-blur-[2px] lg:hidden"
           onClick={onClose}
         />
       )}
 
       {/* Sidebar */}
-      <aside className={cn(
+      <aside
+        id="app-sidebar"
+        ref={sidebarRef}
+        role={isOpen ? 'dialog' : undefined}
+        aria-modal={isOpen ? true : undefined}
+        aria-label={isOpen ? t('nav.navigation', 'Navigation principale') : undefined}
+        className={cn(
         'fixed inset-y-0 left-0 z-30 flex w-72 flex-col bg-[#0d1517] text-white transition-transform duration-300 lg:translate-x-0 lg:static lg:z-auto',
         isOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
@@ -58,15 +111,21 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Header sidebar */}
         <div className="relative flex h-20 items-center justify-between border-b border-white/10 px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-cemac-500 to-cemac-800 text-sm font-black text-white shadow-[0_10px_20px_rgba(14,122,101,0.35)]">
-              CI
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl shadow-[0_10px_20px_rgba(14,122,101,0.35)]">
+              <LogoMark size={40} className="drop-shadow-sm" />
             </div>
             <div>
               <span className="block text-sm font-black uppercase tracking-[0.18em] text-white/70">CEMAC</span>
               <span className="block text-lg font-black text-white">INTEGRA</span>
             </div>
           </div>
-          <button onClick={onClose} className="lg:hidden rounded-xl p-2 text-gray-400 hover:bg-white/5 hover:text-white">
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            aria-label={t('landing.nav.close_menu', 'Fermer le menu')}
+            className="lg:hidden rounded-xl p-2.5 text-gray-300 hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d1517]"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -85,14 +144,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         )}
 
         {/* Navigation */}
-        <nav className="relative flex-1 space-y-1 overflow-y-auto px-4 py-5">
+        <nav aria-label={t('nav.navigation', 'Navigation principale')} className="relative flex-1 space-y-1 overflow-y-auto px-4 py-5">
           {nav.map(({ to, icon: Icon, labelKey }) => (
             <NavLink
               key={to}
               to={to}
               onClick={onClose}
               className={({ isActive }) => cn(
-                'flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200',
+                'flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-400 focus-visible:ring-inset',
                 isActive
                   ? 'bg-gradient-to-r from-cemac-500/25 to-white/5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
                   : 'text-white/65 hover:bg-white/5 hover:text-white'
@@ -109,7 +168,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               to="/admin"
               onClick={onClose}
               className={({ isActive }) => cn(
-                'flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200',
+                'flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-inset',
                 isActive
                   ? 'bg-red-500/15 text-red-200 font-semibold'
                   : 'text-white/65 hover:bg-red-500/10 hover:text-red-200'
@@ -126,7 +185,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               to="/products"
               onClick={onClose}
               className={({ isActive }) => cn(
-                'flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200',
+                'flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-400 focus-visible:ring-inset',
                 isActive
                   ? 'bg-gradient-to-r from-cemac-500/25 to-white/5 text-white font-semibold'
                   : 'text-white/65 hover:bg-white/5 hover:text-white'
@@ -144,7 +203,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             to="/billing"
             onClick={onClose}
             className={({ isActive }) => cn(
-              'flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200',
+              'flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-400 focus-visible:ring-inset',
               isActive ? 'bg-gradient-to-r from-cemac-500/25 to-white/5 text-white' : 'text-white/65 hover:bg-white/5 hover:text-white'
             )}
           >
@@ -155,7 +214,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             to="/settings"
             onClick={onClose}
             className={({ isActive }) => cn(
-              'flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200',
+              'flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-400 focus-visible:ring-inset',
               isActive ? 'bg-gradient-to-r from-cemac-500/25 to-white/5 text-white' : 'text-white/65 hover:bg-white/5 hover:text-white'
             )}
           >
@@ -164,8 +223,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </NavLink>
 
           <button
+            type="button"
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/10 hover:text-red-200"
+            className="flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/10 hover:text-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-inset"
           >
             <LogOut className="h-4 w-4" />
             {t('nav.logout')}

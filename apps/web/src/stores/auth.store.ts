@@ -17,6 +17,7 @@ interface AuthState {
   setSession: (session: Session | null) => void
   setProfile: (profile: Profile | null) => void
   setEntreprise: (entreprise: Entreprise | null) => void
+  refreshEntreprise: () => Promise<Entreprise | null>
   initialize: () => Promise<void>
   logout: () => Promise<void>
 
@@ -39,6 +40,21 @@ export const useAuthStore = create<AuthState>()(
       setSession: (session) => set({ session }),
       setProfile: (profile) => set({ profile }),
       setEntreprise: (entreprise) => set({ entreprise }),
+      refreshEntreprise: async () => {
+        const userId = get().user?.id ?? get().session?.user?.id
+        if (!userId || get().profile?.role !== 'company_admin') {
+          set({ entreprise: null })
+          return null
+        }
+        const { data, error } = await supabase
+          .from('entreprises')
+          .select('*')
+          .eq('owner_id', userId)
+          .maybeSingle()
+        if (error) throw error
+        set({ entreprise: data ?? null })
+        return data ?? null
+      },
 
       role: () => (get().profile?.role as UserRole) ?? 'public',
       isAuthenticated: () => !!get().session,

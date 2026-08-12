@@ -72,6 +72,12 @@ export interface Database {
           chambre_id: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
+          subscription_status: 'inactive' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid' | 'paused'
+          subscription_period: 'monthly' | 'yearly' | null
+          subscription_current_period_start: string | null
+          subscription_current_period_end: string | null
+          subscription_cancel_at_period_end: boolean
+          subscription_canceled_at: string | null
           created_at: string
           updated_at: string
         }
@@ -95,6 +101,12 @@ export interface Database {
           chambre_id?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          subscription_status?: 'inactive' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid' | 'paused'
+          subscription_period?: 'monthly' | 'yearly' | null
+          subscription_current_period_start?: string | null
+          subscription_current_period_end?: string | null
+          subscription_cancel_at_period_end?: boolean
+          subscription_canceled_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -116,6 +128,12 @@ export interface Database {
           chambre_id?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          subscription_status?: 'inactive' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid' | 'paused'
+          subscription_period?: 'monthly' | 'yearly' | null
+          subscription_current_period_start?: string | null
+          subscription_current_period_end?: string | null
+          subscription_cancel_at_period_end?: boolean
+          subscription_canceled_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -372,6 +390,187 @@ export interface Database {
         }
         Relationships: []
       }
+      convoys: {
+        Row: {
+          id: string
+          reference: string
+          name: string
+          country: string
+          origin: string
+          destination: string
+          status: 'draft' | 'planned' | 'operational' | 'completed' | 'cancelled'
+          agent_id: string | null
+          planned_departure: string | null
+          planned_arrival: string | null
+          actual_departure: string | null
+          actual_arrival: string | null
+          notes: string | null
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          reference?: string
+          name: string
+          country: string
+          origin: string
+          destination: string
+          status?: 'draft' | 'planned' | 'operational' | 'completed' | 'cancelled'
+          agent_id?: string | null
+          planned_departure?: string | null
+          planned_arrival?: string | null
+          actual_departure?: string | null
+          actual_arrival?: string | null
+          notes?: string | null
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          country?: string
+          origin?: string
+          destination?: string
+          status?: 'draft' | 'planned' | 'operational' | 'completed' | 'cancelled'
+          agent_id?: string | null
+          planned_departure?: string | null
+          planned_arrival?: string | null
+          actual_departure?: string | null
+          actual_arrival?: string | null
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      expeditions: {
+        Row: {
+          id: string
+          reference: string
+          entreprise_id: string
+          certification_id: string
+          convoy_id: string | null
+          assigned_agent_id: string | null
+          status: 'draft' | 'ready' | 'in_transit' | 'checkpoint_hold' | 'delivered' | 'cancelled'
+          origin_country: string
+          origin_city: string
+          destination_country: string
+          destination_city: string
+          goods_description: string
+          gross_weight_kg: number | null
+          package_count: number | null
+          declared_value: number | null
+          currency: string
+          expected_departure: string | null
+          expected_arrival: string | null
+          delivered_at: string | null
+          notes: string | null
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          reference?: string
+          entreprise_id: string
+          certification_id: string
+          convoy_id?: string | null
+          assigned_agent_id?: string | null
+          status?: 'draft' | 'ready' | 'in_transit' | 'checkpoint_hold' | 'delivered' | 'cancelled'
+          origin_country: string
+          origin_city: string
+          destination_country: string
+          destination_city: string
+          goods_description: string
+          gross_weight_kg?: number | null
+          package_count?: number | null
+          declared_value?: number | null
+          currency?: string
+          expected_departure?: string | null
+          expected_arrival?: string | null
+          delivered_at?: string | null
+          notes?: string | null
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          convoy_id?: string | null
+          assigned_agent_id?: string | null
+          status?: 'draft' | 'ready' | 'in_transit' | 'checkpoint_hold' | 'delivered' | 'cancelled'
+          origin_country?: string
+          origin_city?: string
+          destination_country?: string
+          destination_city?: string
+          goods_description?: string
+          gross_weight_kg?: number | null
+          package_count?: number | null
+          declared_value?: number | null
+          currency?: string
+          expected_departure?: string | null
+          expected_arrival?: string | null
+          delivered_at?: string | null
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      expedition_events: {
+        Row: {
+          id: string
+          expedition_id: string
+          event_type: 'created' | 'status' | 'checkpoint' | 'note' | 'document'
+          previous_status: string | null
+          new_status: string | null
+          title: string
+          description: string | null
+          location: string | null
+          metadata: Json
+          created_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          expedition_id: string
+          event_type: 'created' | 'status' | 'checkpoint' | 'note' | 'document'
+          previous_status?: string | null
+          new_status?: string | null
+          title: string
+          description?: string | null
+          location?: string | null
+          metadata?: Json
+          created_by: string
+          created_at?: string
+        }
+        Update: Record<string, never>
+        Relationships: []
+      }
+      expedition_documents: {
+        Row: {
+          id: string
+          expedition_id: string
+          document_type: 'eur1' | 'invoice' | 'packing_list' | 'customs' | 'transport' | 'insurance' | 'other'
+          file_name: string
+          storage_path: string
+          mime_type: 'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp'
+          file_size: number
+          uploaded_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          expedition_id: string
+          document_type: 'eur1' | 'invoice' | 'packing_list' | 'customs' | 'transport' | 'insurance' | 'other'
+          file_name: string
+          storage_path: string
+          mime_type: 'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp'
+          file_size: number
+          uploaded_by: string
+          created_at?: string
+        }
+        Update: Record<string, never>
+        Relationships: []
+      }
       corridors: {
         Row: {
           id: string
@@ -438,6 +637,7 @@ export interface Database {
           body: string | null
           read: boolean
           certification_id: string | null
+          expedition_id: string | null
           created_at: string
         }
         Insert: {
@@ -449,6 +649,7 @@ export interface Database {
           body?: string | null
           read?: boolean
           certification_id?: string | null
+          expedition_id?: string | null
           created_at?: string
         }
         Update: {
@@ -457,6 +658,7 @@ export interface Database {
           body?: string | null
           read?: boolean
           certification_id?: string | null
+          expedition_id?: string | null
         }
         Relationships: [
           {
@@ -464,6 +666,13 @@ export interface Database {
             columns: ['certification_id']
             isOneToOne: false
             referencedRelation: 'certifications'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'notifications_expedition_id_fkey'
+            columns: ['expedition_id']
+            isOneToOne: false
+            referencedRelation: 'expeditions'
             referencedColumns: ['id']
           },
         ]
@@ -544,13 +753,18 @@ export interface Database {
           country: string
           payment_method: string
           payment_ref: string | null
-          status: 'pending' | 'paid' | 'cancelled'
+          status: 'pending' | 'paid' | 'cancelled' | 'failed'
           billing_period: 'monthly' | 'yearly'
           issued_at: string
           due_at: string
           paid_at: string | null
           notes: string | null
           pdf_url: string | null
+          stripe_invoice_id: string | null
+          stripe_subscription_id: string | null
+          stripe_payment_intent_id: string | null
+          hosted_invoice_url: string | null
+          stripe_invoice_pdf_url: string | null
           created_at: string
           updated_at: string
         }
@@ -568,20 +782,30 @@ export interface Database {
           country?: string
           payment_method?: string
           payment_ref?: string | null
-          status?: 'pending' | 'paid' | 'cancelled'
+          status?: 'pending' | 'paid' | 'cancelled' | 'failed'
           billing_period?: 'monthly' | 'yearly'
           issued_at?: string
           due_at?: string
           paid_at?: string | null
           notes?: string | null
           pdf_url?: string | null
+          stripe_invoice_id?: string | null
+          stripe_subscription_id?: string | null
+          stripe_payment_intent_id?: string | null
+          hosted_invoice_url?: string | null
+          stripe_invoice_pdf_url?: string | null
         }
         Update: {
-          status?: 'pending' | 'paid' | 'cancelled'
+          status?: 'pending' | 'paid' | 'cancelled' | 'failed'
           payment_ref?: string | null
           paid_at?: string | null
           notes?: string | null
           pdf_url?: string | null
+          stripe_invoice_id?: string | null
+          stripe_subscription_id?: string | null
+          stripe_payment_intent_id?: string | null
+          hosted_invoice_url?: string | null
+          stripe_invoice_pdf_url?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -747,6 +971,10 @@ export interface Database {
       }
     }
     Functions: {
+      admin_security_health: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       admin_set_subscription_plan: {
         Args: {
           target_entreprise_id: string
@@ -773,6 +1001,15 @@ export interface Database {
         Args: { resource_name: string }
         Returns: boolean
       }
+      consume_rate_limit: {
+        Args: {
+          p_scope: string
+          p_identifier_hash: string
+          p_limit: number
+          p_window_seconds: number
+        }
+        Returns: Json
+      }
       get_my_country: {
         Args: Record<PropertyKey, never>
         Returns: string | null
@@ -793,8 +1030,30 @@ export interface Database {
           p_user_id: string
           p_entreprise_id: string
           p_plan: string | null
+          p_billing_period: string | null
+          p_subscription_status: string | null
           p_stripe_customer_id: string | null
           p_stripe_subscription_id: string | null
+          p_period_start: string | null
+          p_period_end: string | null
+          p_cancel_at_period_end: boolean
+          p_canceled_at: string | null
+          p_stripe_invoice_id: string | null
+          p_invoice_number: string | null
+          p_invoice_subtotal: number | null
+          p_invoice_tax: number | null
+          p_invoice_total: number | null
+          p_currency: string | null
+          p_payment_intent_id: string | null
+          p_hosted_invoice_url: string | null
+          p_invoice_pdf_url: string | null
+        }
+        Returns: boolean
+      }
+      user_notification_enabled: {
+        Args: {
+          p_user_id: string
+          p_preference: string
         }
         Returns: boolean
       }

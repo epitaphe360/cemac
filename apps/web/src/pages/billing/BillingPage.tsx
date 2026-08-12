@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Receipt, Download, TrendingUp, Clock } from 'lucide-react'
+import { Receipt, Download, TrendingUp, Clock, ExternalLink } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth.store'
 import { Card, CardContent } from '@/components/ui/card'
@@ -11,11 +11,25 @@ import type { Invoice } from '@/types'
 import { useTaxRates } from '@/hooks/use-cms'
 import { getPrimaryLanguage } from '@/lib/i18n-utils'
 import type { CmsLocale, TaxRateView } from '@/lib/cms-types'
+import { paymentsEnabled } from '@/lib/payments'
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   mtn_momo:      'MTN Mobile Money',
   orange_money:  'Orange Money',
   bank_transfer: 'Virement bancaire',
+  stripe:         'Stripe',
+}
+
+function trustedStripeDocumentUrl(value: string | null): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && (
+      url.hostname.endsWith('.stripe.com') || url.hostname === 'stripe.com'
+    ) ? url.toString() : null
+  } catch {
+    return null
+  }
 }
 
 async function downloadInvoicePdf(
@@ -138,6 +152,7 @@ export function BillingPage() {
   } = useTaxRates(locale)
   const taxRatesByCountry = new Map(taxRates.map((taxRate) => [taxRate.countryCode, taxRate]))
   const profile = useAuthStore((s) => s.profile)
+  const entreprise = useAuthStore((s) => s.entreprise)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
@@ -191,6 +206,27 @@ export function BillingPage() {
         <p role="status" className="text-sm text-amber-700">Référentiel fiscal indisponible.</p>
       ) : null}
 
+      {entreprise && (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+            <div>
+              <p className="text-sm font-semibold">Abonnement {entreprise.subscription_plan}</p>
+              <p className="text-xs text-muted-foreground">
+                {paymentsEnabled
+                  ? `Statut Stripe : ${entreprise.subscription_status ?? 'inactive'}`
+                  : 'Paiement en ligne désactivé — contactez le commercial pour activer un forfait.'}
+                {paymentsEnabled && entreprise.subscription_current_period_end
+                  ? ` · Période jusqu’au ${formatDate(entreprise.subscription_current_period_end)}`
+                  : ''}
+              </p>
+            </div>
+            <a href="/settings?tab=plan" className="text-sm font-semibold text-cemac-700 hover:underline">
+              Gérer l’abonnement
+            </a>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats */}
       {!loading && invoices.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -229,6 +265,9 @@ export function BillingPage() {
         <div className="space-y-3">
           {invoices.map((inv) => {
             const taxInfo = taxRatesByCountry.get(inv.country)
+            const stripeDocumentUrl =
+              trustedStripeDocumentUrl(inv.stripe_invoice_pdf_url) ??
+              trustedStripeDocumentUrl(inv.hosted_invoice_url)
             return (
               <Card key={inv.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
@@ -237,6 +276,7 @@ export function BillingPage() {
                     <div className="flex-shrink-0">
                       <p className="font-mono text-sm font-bold text-cemac-700">{inv.invoice_number}</p>
                       <p className="text-xs text-muted-foreground">{formatDate(inv.issued_at)}</p>
+                      {inv.stripe_invoice_id && <p className="text-[11px] text-blue-600">Facture Stripe</p>}
                     </div>
 
                     {/* Plan + period */}
@@ -267,19 +307,27 @@ export function BillingPage() {
                         inv.status === 'paid' ? 'bg-green-100 text-green-800' :
                         inv.status === 'cancelled' ? 'bg-gray-100 text-gray-600' :
                         'bg-yellow-100 text-yellow-800')}>
-                        {t(`billing.status_${inv.status}`)}
+                        {inv.status === 'failed' ? 'Échec' : t(`billing.status_${inv.status}`)}
                       </span>
                     </div>
 
                     {/* Download button */}
                     <div className="flex-shrink-0">
-                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => handleDownload(inv)} disabled={downloadingId === inv.id}>
-                        {downloadingId === inv.id
-                          ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />
-                          : <Download className="h-3.5 w-3.5" />
-                        }
-                        PDF
-                      </Button>
+                      {stripeDocumentUrl ? (
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={stripeDocumentUrl} target="_blank" rel="noreferrer">
+                            <ExternalLink className="h-3.5 w-3.5" /> Stripe
+                          </a>
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => handleDownload(inv)} disabled={downloadingId === inv.id}>
+                          {downloadingId === inv.id
+                            ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />
+                            : <Download className="h-3.5 w-3.5" />
+                          }
+                          PDF
+                        </Button>
+                      )}
                     </div>
                   </div>
 

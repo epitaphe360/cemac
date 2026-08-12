@@ -13,6 +13,7 @@
     "type-check": "npm run type-check --workspace=apps/web",
     "preview": "npm run preview --workspace=apps/web",
     "test": "npm run test --workspace=apps/web",
+    "test:rls": "vitest run --config supabase/tests/vitest.config.ts",
     "ci": "npm run lint && npm run type-check && npm run build"
   },
   "engines": {

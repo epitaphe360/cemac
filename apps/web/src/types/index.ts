@@ -12,6 +12,10 @@ export type ChambreCommerce = Database['public']['Tables']['chambres_commerce'][
 // Logistics tables (derived from Database types)
 export type Corridor = Database['public']['Tables']['corridors']['Row']
 export type LogisticsAlert = Database['public']['Tables']['logistics_alerts']['Row']
+export type Convoy = Database['public']['Tables']['convoys']['Row']
+export type Expedition = Database['public']['Tables']['expeditions']['Row']
+export type ExpeditionEvent = Database['public']['Tables']['expedition_events']['Row']
+export type ExpeditionDocument = Database['public']['Tables']['expedition_documents']['Row']
 export type Invoice = Database['public']['Tables']['invoices']['Row']
 export type Notification = Database['public']['Tables']['notifications']['Row']
 export type ContactRequest = Database['public']['Tables']['contact_requests']['Row']
@@ -40,6 +44,8 @@ export type ApiConfigMetadata = Database['public']['Views']['api_config_metadata
 
 // Insert types
 export type InsertEntreprise = Database['public']['Tables']['entreprises']['Insert']
+export type InsertConvoy = Database['public']['Tables']['convoys']['Insert']
+export type InsertExpedition = Database['public']['Tables']['expeditions']['Insert']
 export type InsertCertification = Database['public']['Tables']['certifications']['Insert']
 export type InsertProduit = Database['public']['Tables']['produits']['Insert']
 export type InsertContentBlock = Database['public']['Tables']['content_blocks']['Insert']

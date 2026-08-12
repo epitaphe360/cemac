@@ -28,7 +28,7 @@ function objectText(object: CmsJsonObject, key: string) {
   return typeof value === 'string' ? value : null
 }
 
-const emptyForm = { name: '', email: '', company: '', country: '', reason: '', message: '' }
+const emptyForm = { name: '', email: '', company: '', country: '', reason: '', message: '', website: '' }
 
 export function ContactPage() {
   const { t, i18n } = useTranslation()
@@ -56,11 +56,22 @@ export function ContactPage() {
     }
     setSubmitting(true)
     try {
-      const { error } = await supabase.from('contact_requests').insert({
-        full_name: form.name, email: form.email, company: form.company || null,
-        country: form.country || null, reason: form.reason || null, message: form.message,
+      const { error } = await supabase.functions.invoke('submit-contact', {
+        body: form,
       })
-      if (error) throw error
+      if (error) {
+        const response = (error as { context?: Response }).context
+        if (response?.status === 429) {
+          const retryAfter = Number(response.headers.get('Retry-After') ?? '60')
+          toast.error(
+            locale === 'fr'
+              ? `Trop de demandes. Réessayez dans ${Math.max(1, Math.ceil(retryAfter / 60))} minute(s).`
+              : `Too many requests. Try again in ${Math.max(1, Math.ceil(retryAfter / 60))} minute(s).`,
+          )
+          return
+        }
+        throw error
+      }
       setSent(true)
       toast.success(text(ui, 'success_toast') ?? '')
     } catch (error) {
@@ -127,6 +138,17 @@ export function ContactPage() {
             ) : (
               <form onSubmit={handleSubmit} className="bg-white/92 rounded-3xl p-8 border border-white shadow-[0_18px_45px_rgba(10,45,39,0.1)]">
                 <h2 className="text-xl font-black text-gray-900 mb-6">{text(ui, 'form_title')}</h2>
+                <label className="absolute -left-[10000px] h-px w-px overflow-hidden" aria-hidden="true">
+                  <span>Website</span>
+                  <input
+                    type="text"
+                    name="website"
+                    value={form.website}
+                    onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))}
+                    tabIndex={-1}
+                    autoComplete="off"
+                  />
+                </label>
                 <div className="grid sm:grid-cols-2 gap-4 mb-4">
                   {(['name', 'email', 'company'] as const).map((field) => <label key={field} className="block text-sm font-semibold text-gray-700">{text(ui, `${field}_label`)}{field !== 'company' && <span className="text-red-500"> *</span>}<input type={field === 'email' ? 'email' : 'text'} value={form[field]} onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))} placeholder={text(ui, `${field}_placeholder`) ?? undefined} required={field !== 'company'} className="mt-1.5 w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-cemac-500 focus:ring-2 focus:ring-cemac-500/20 outline-none text-sm" /></label>)}
                   <label className="block text-sm font-semibold text-gray-700">{text(ui, 'country_label')}<select value={form.country} onChange={(event) => setForm((current) => ({ ...current, country: event.target.value }))} className="mt-1.5 w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-sm"><option value="">{text(ui, 'country_placeholder')}</option>{countries.map((country) => <option key={objectText(country, 'code')} value={objectText(country, 'code') ?? ''}>{objectText(country, 'label')}</option>)}</select></label>

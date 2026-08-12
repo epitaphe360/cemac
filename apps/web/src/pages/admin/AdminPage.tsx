@@ -22,6 +22,8 @@ import { CERTIFICATION_STATUS_LABELS, CEMAC_COUNTRIES } from '@/lib/constants'
 import type { Profile, Entreprise, Certification, Document, WorkflowEvent, Produit, ChambreCommerce, Corridor, LogisticsAlert, ContactRequest, PricingPlan, TaxRate } from '@/types'
 import { CmsAdminPanel } from './components/CmsAdminPanel'
 import { ApiConfigStatusPanel } from './components/ApiConfigStatusPanel'
+import { SecurityHealthPanel } from './components/SecurityHealthPanel'
+import { LogisticsExpeditionsPanel } from './components/LogisticsExpeditionsPanel'
 import toast from 'react-hot-toast'
 
 type Tab = 'overview' | 'certifications' | 'users' | 'companies' | 'products' | 'documents' | 'audit' | 'chambers' | 'logistics' | 'cms' | 'api_config' | 'billing' | 'contact_requests'
@@ -155,7 +157,7 @@ function AdminPageInner() {
     id: string; invoice_number: string; user_id: string; company_id: string | null
     plan_name: string; amount_ht: number; tax_rate: number; tax_amount: number
     amount_ttc: number; currency: string; country: string; payment_method: string
-    payment_ref: string | null; status: 'pending' | 'paid' | 'cancelled'
+    payment_ref: string | null; status: 'pending' | 'paid' | 'cancelled' | 'failed'
     billing_period: string; issued_at: string; due_at: string; paid_at: string | null
     notes: string | null
     profile?: { email: string; full_name: string | null }
@@ -1153,6 +1155,8 @@ function AdminPageInner() {
           {logisticsLoading && <PageLoader />}
 
           {!logisticsLoading && (
+            <div className="space-y-6">
+              <LogisticsExpeditionsPanel />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* ── Corridors ─────────────────────────────────────────── */}
               <div className="space-y-4">
@@ -1268,6 +1272,7 @@ function AdminPageInner() {
                 </Card>
               </div>
             </div>
+            </div>
           )}
         </div>
       )}
@@ -1276,7 +1281,12 @@ function AdminPageInner() {
       {activeTab === 'cms' && <CmsAdminPanel />}
 
       {/* ─── API CONFIG STATUS TAB (metadata only, never secrets) ──────── */}
-      {activeTab === 'api_config' && <ApiConfigStatusPanel />}
+      {activeTab === 'api_config' && (
+        <div className="space-y-6">
+          <SecurityHealthPanel />
+          <ApiConfigStatusPanel />
+        </div>
+      )}
 
       {/* Ancien éditeur désactivé : api_configs peut contenir des secrets. */}
       {legacyApiEditorEnabled && activeTab === 'api_config' && (
@@ -1447,6 +1457,7 @@ function AdminPageInner() {
               <option value="pending">{t('admin.billing.status_pending')}</option>
               <option value="paid">{t('admin.billing.status_paid')}</option>
               <option value="cancelled">{t('admin.billing.status_cancelled')}</option>
+              <option value="failed">Échec</option>
             </select>
             <Button size="sm" onClick={() => setShowCreateInvoice((v) => !v)} className="whitespace-nowrap">
               <Plus className="h-4 w-4 mr-1" />{t('admin.billing.create')}
@@ -1584,8 +1595,8 @@ function AdminPageInner() {
                             <td className="px-4 py-3 text-xs">{inv.country}</td>
                             <td className="px-4 py-3">
                               <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium',
-                                inv.status === 'paid' ? 'bg-green-100 text-green-800' : inv.status === 'cancelled' ? 'bg-gray-100 text-gray-600' : 'bg-yellow-100 text-yellow-800')}>
-                                {t(`admin.billing.status_${inv.status}`)}
+                                inv.status === 'paid' ? 'bg-green-100 text-green-800' : inv.status === 'cancelled' ? 'bg-gray-100 text-gray-600' : inv.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-800')}>
+                                {inv.status === 'failed' ? 'Échec' : t(`admin.billing.status_${inv.status}`)}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-xs text-muted-foreground">{formatDate(inv.issued_at)}</td>
@@ -1617,6 +1628,7 @@ function AdminPageInner() {
                                 )}
                                 {inv.status === 'paid' && <span className="text-xs text-green-600 font-medium">✓ Payée</span>}
                                 {inv.status === 'cancelled' && <span className="text-xs text-gray-400">Annulée</span>}
+                                {inv.status === 'failed' && <span className="text-xs text-red-600">Échec Stripe</span>}
                               </div>
                             </td>
                           </tr>
