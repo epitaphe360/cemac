@@ -1,15 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
+import { getSupabaseAnonKey, getSupabaseUrl } from '@/lib/public-env'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    '[CEMAC INTEGRA] Variables d\'environnement manquantes : VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY sont requises.\n' +
-    'Copiez apps/web/.env.example vers apps/web/.env et renseignez vos valeurs Supabase.'
-  )
-}
+const supabaseUrl = getSupabaseUrl()
+const supabaseAnonKey = getSupabaseAnonKey()
 
 // React StrictMode (dev only) double-mounts components, causing two concurrent
 // onAuthStateChange subscribers to race for the same navigator.lock key.

@@ -1,4 +1,6 @@
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
+import { getSupabaseUrl } from '@/lib/public-env'
+
+export const SUPABASE_URL = getSupabaseUrl()
 
 export const APP_NAME = 'CEMAC INTEGRA'
 export const APP_VERSION = '2.0.0'
