@@ -353,13 +353,14 @@ L'application est déployée sur **Vercel** avec la configuration suivante (`ver
 
 ```json
 {
-  "buildCommand": "cd apps/web && npm run build",
-  "outputDirectory": "apps/web/dist",
   "installCommand": "npm ci",
-  "framework": "vite",
+  "buildCommand": "npm run build --prefix apps/web",
+  "outputDirectory": "apps/web/dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
 ```
+
+Dans Vercel : **Root Directory** doit rester vide (racine du monorepo), pas `apps/web`.
 
 Les en-têtes de sécurité sont configurés automatiquement :
 - `X-Content-Type-Options: nosniff`
