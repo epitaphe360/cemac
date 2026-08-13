@@ -16,7 +16,7 @@
     --secondary-foreground: 176 34% 20%;
     --muted: 172 24% 95%;
     --muted-foreground: 174 18% 38%;
-    --accent: 44 92% 62%;
+    --accent: 44 72% 58%;
     --accent-foreground: 175 40% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -26,11 +26,10 @@
     --radius: 1rem;
   }
 
-  /* Default dark mode if needed, toned down to Slate/Green-Gray instead of pure pitch black */
   .dark {
-    --background: 175 35% 10%; /* cemac-950 */
+    --background: 175 35% 10%;
     --foreground: 180 20% 95%;
-    --card: 175 35% 12%; 
+    --card: 175 35% 12%;
     --card-foreground: 180 20% 95%;
     --popover: 175 35% 12%;
     --popover-foreground: 180 20% 95%;
@@ -51,16 +50,18 @@
 }
 
 @layer base {
-  * { 
-    @apply border-border; 
-    box-sizing: border-box; 
+  * {
+    @apply border-border;
+    box-sizing: border-box;
   }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    @apply bg-background text-foreground font-sans antialiased;
     font-size: 16px;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
     margin: 0;
     background-image:
       radial-gradient(circle at top left, rgba(31, 167, 139, 0.08), transparent 28%),
@@ -68,17 +69,18 @@
       linear-gradient(180deg, rgba(245, 251, 249, 1) 0%, rgba(250, 252, 251, 1) 100%);
     background-attachment: fixed;
   }
+
   ::selection {
-    background: rgba(31, 167, 139, 0.2);
+    background: rgba(31, 167, 139, 0.22);
     color: inherit;
   }
+
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-    letter-spacing: -0.02em;
+    @apply font-sans tracking-tight;
   }
-  /* Optional generic serif class for specific institutional headings */
+
   .font-institutional {
-    font-family: 'Playfair Display', serif;
+    font-family: 'Playfair Display', Georgia, serif;
   }
 }
 
@@ -87,7 +89,6 @@
 ::-webkit-scrollbar-thumb { background-color: #bedcd6; border-radius: 9999px; }
 .dark ::-webkit-scrollbar-thumb { background-color: #26544f; }
 
-/* Accessibility: prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -97,7 +98,6 @@
   }
 }
 
-/* Accessibility: global focus-visible ring */
 :focus-visible {
   outline: 3px solid hsl(var(--ring));
   outline-offset: 2px;
@@ -112,16 +112,48 @@
   }
 
   .app-panel {
-    @apply rounded-[28px] border border-white/70 shadow-[0_18px_60px_rgba(9,46,39,0.08)] backdrop-blur-xl;
-    background-color: rgba(255, 255, 255, 0.88);
+    @apply rounded-[28px] border border-white/70 shadow-elevated backdrop-blur-xl;
+    background-color: rgba(255, 255, 255, 0.9);
   }
 
   .metric-card {
-    @apply rounded-3xl border border-white/75 shadow-[0_12px_35px_rgba(9,46,39,0.08)] backdrop-blur-xl;
-    background-color: rgba(255, 255, 255, 0.9);
+    @apply rounded-3xl border border-white/75 shadow-subtle backdrop-blur-xl transition-all duration-300;
+    background-color: rgba(255, 255, 255, 0.92);
+  }
+
+  .metric-card:hover {
+    @apply shadow-elevated;
   }
 
   .hero-chip {
     @apply inline-flex items-center gap-2 rounded-full border border-cemac-200/80 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-cemac-800 shadow-sm backdrop-blur;
+  }
+
+  .page-hero {
+    @apply relative overflow-hidden rounded-[30px] px-6 py-7 text-white sm:px-8;
+    background: linear-gradient(135deg, #0f3c38 0%, #115e59 52%, #a37136 140%);
+    box-shadow: 0 20px 60px rgba(15, 60, 56, 0.24);
+  }
+
+  .page-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at top right, rgba(255, 255, 255, 0.14), transparent 22%),
+      radial-gradient(circle at bottom left, rgba(255, 212, 92, 0.16), transparent 20%);
+    pointer-events: none;
+  }
+
+  .landing-surface {
+    @apply bg-cemac-950 text-white;
+  }
+
+  .landing-section {
+    @apply relative py-20 sm:py-24 lg:py-28;
+  }
+
+  .brand-mark {
+    @apply font-black uppercase tracking-brand text-gold-400;
   }
 }

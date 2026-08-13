@@ -1,32 +1,29 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, Globe, ChevronDown } from 'lucide-react'
+import { Menu, X, Globe, ChevronDown, ArrowRight, ChevronRight } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useTranslation } from 'react-i18next'
 import { getPrimaryLanguage } from '@/lib/i18n-utils'
+import { LogoMark } from '@/components/shared/LogoMark'
+import { cn } from '@/lib/utils'
 
 export function LandingNav() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
   const [langOpen, setLangOpen] = useState(false)
   const { isAuthenticated } = useAuthStore()
   const { i18n, t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
   const currentLanguage = getPrimaryLanguage(i18n.resolvedLanguage ?? i18n.language)
-  const navLinks = [
-    { label: t('landing.nav.features'), href: '/#features' },
-    { label: t('marketplace.title'), href: '/marketplace-public' },
-    { label: t('landing.nav.pricing'), href: '/tarifs' },
-    { label: t('landing.nav.about'), href: '/a-propos' },
-    { label: t('landing.nav.contact'), href: '/contact' },
-  ]
+  const isFr = currentLanguage === 'fr'
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20)
-    window.addEventListener('scroll', onScroll)
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+  const navLinks = [
+    { label: isFr ? 'Accueil' : 'Home', href: '/' },
+    { label: isFr ? 'Écosystème' : 'Ecosystem', href: '/#ecosystem' },
+    { label: isFr ? 'Pays' : 'Countries', href: '/#pays' },
+    { label: isFr ? 'Technologie' : 'Technology', href: '/#technologie' },
+    { label: isFr ? 'À propos' : 'About', href: '/a-propos' },
+  ]
 
   useEffect(() => {
     setMenuOpen(false)
@@ -56,80 +53,102 @@ export function LandingNav() {
     setMenuOpen(false)
   }
 
+  const isActive = (href: string) => {
+    if (href === '/') return location.pathname === '/' && !location.hash
+    if (href.startsWith('/#')) return location.pathname === '/' && location.hash === href.slice(1)
+    return location.pathname === href
+  }
+
   return (
     <>
+      {/* Top utility bar */}
+      <div className="fixed left-0 right-0 top-0 z-[60] border-b border-white/[0.06] bg-[#06110d]/95 text-[11px] text-white/55 backdrop-blur-md">
+        <div className="mx-auto flex h-8 max-w-[1280px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+          <p className="truncate">
+            {isFr
+              ? 'CEMAC INTEGRA · la plateforme digitale pour une intégration régionale plus forte et plus inclusive.'
+              : 'CEMAC INTEGRA · the digital platform for stronger, more inclusive regional integration.'}
+          </p>
+          <div className="hidden shrink-0 items-center gap-3 sm:flex">
+            <Link to="/blog" className="transition hover:text-white">
+              {isFr ? 'Actualités' : 'News'}
+            </Link>
+            <span className="text-white/20">|</span>
+            <Link to="/contact" className="inline-flex items-center gap-1 transition hover:text-white">
+              {isFr ? 'Événements' : 'Events'}
+              <ChevronRight className="h-3 w-3" aria-hidden />
+            </Link>
+          </div>
+        </div>
+      </div>
+
       <nav
         aria-label="Navigation principale"
-        className={`fixed top-0 left-0 right-0 z-50 border-b transition-all duration-300 ${
-        scrolled ? 'bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100' : 'bg-transparent border-b border-transparent'
-      }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 lg:h-20">
-
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-3 group">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cemac-600 to-cemac-800 flex items-center justify-center shadow-lg">
-                <span className="text-white font-black text-sm">CI</span>
-              </div>
-              <div className="hidden sm:block">
-                <span className={`font-black text-xl tracking-tight transition-colors ${
-                  scrolled ? 'text-gray-900' : 'text-white'
-                }`}>
-                  CEMAC
-                </span>
-                <span className={`font-black text-xl tracking-tight transition-colors ${
-                  scrolled ? 'text-cemac-600' : 'text-cemac-600'
-                }`}>
-                  {' '}INTEGRA
-                </span>
-              </div>
+        className="fixed left-0 right-0 top-8 z-50 border-b border-white/[0.07] bg-[#07140f]/90 backdrop-blur-xl"
+      >
+        <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8">
+          <div className="flex h-[72px] items-center justify-between">
+            <Link to="/" className="group flex items-center gap-3">
+              <LogoMark size={36} className="transition-transform duration-300 group-hover:scale-105" />
+              <span className="text-[15px] font-extrabold tracking-[0.04em] text-white">
+                CEMAC <span className="text-[#3DDC97]">INTEGRA</span>
+              </span>
             </Link>
 
-            {/* Desktop nav links */}
-            <div className="hidden lg:flex items-center gap-1">
+            <div className="hidden items-center gap-1 xl:flex">
               {navLinks.map((link) => (
                 <button
                   key={link.href}
+                  type="button"
                   onClick={() => handleAnchor(link.href)}
-                  aria-current={!link.href.startsWith('/#') && location.pathname === link.href ? 'page' : undefined}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400 ${
-                    scrolled ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-50' : 'text-white/80 hover:text-white hover:bg-white/10'
-                  }`}
+                  aria-current={isActive(link.href) ? 'page' : undefined}
+                  className={cn(
+                    'relative rounded-lg px-3.5 py-2 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3DDC97]',
+                    isActive(link.href) ? 'text-white' : 'text-white/60 hover:text-white'
+                  )}
                 >
                   {link.label}
+                  {isActive(link.href) && (
+                    <span className="absolute inset-x-3 -bottom-[1px] h-0.5 rounded-full bg-[#3DDC97]" />
+                  )}
                 </button>
               ))}
             </div>
 
-            {/* Right actions */}
-            <div className="hidden lg:flex items-center gap-3">
-              {/* Language switcher */}
+            <div className="hidden items-center gap-2.5 lg:flex">
               <div className="relative">
                 <button
+                  type="button"
                   onClick={() => setLangOpen(!langOpen)}
                   aria-label={t('landing.nav.change_language')}
                   aria-expanded={langOpen}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-500 ${
-                    scrolled ? 'text-gray-600 hover:bg-gray-100' : 'text-white hover:bg-white/10'
-                  }`}
+                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-white/70 transition hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3DDC97]"
                 >
-                  <Globe size={15} aria-hidden />
+                  <Globe size={14} aria-hidden />
                   <span>{currentLanguage.toUpperCase()}</span>
-                  <ChevronDown size={13} aria-hidden />
+                  <ChevronDown size={12} aria-hidden />
                 </button>
                 {langOpen && (
-                  <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-gray-100 py-1 w-28 z-50">
+                  <div className="absolute right-0 top-full z-50 mt-1 w-32 overflow-hidden rounded-xl border border-white/10 bg-[#0c1a15] py-1 shadow-2xl">
                     <button
-                      className="w-full px-4 py-2 text-sm text-left hover:bg-cemac-50 text-gray-700"
-                      onClick={() => { i18n.changeLanguage('fr'); setLangOpen(false) }}
+                      type="button"
+                      className="w-full px-4 py-2 text-left text-sm text-white/80 hover:bg-white/5"
+                      onClick={() => {
+                        i18n.changeLanguage('fr')
+                        setLangOpen(false)
+                      }}
                     >
-                      🇫🇷 {t('landing.nav.french')}
+                      FR {t('landing.nav.french')}
                     </button>
                     <button
-                      className="w-full px-4 py-2 text-sm text-left hover:bg-cemac-50 text-gray-700"
-                      onClick={() => { i18n.changeLanguage('en'); setLangOpen(false) }}
+                      type="button"
+                      className="w-full px-4 py-2 text-left text-sm text-white/80 hover:bg-white/5"
+                      onClick={() => {
+                        i18n.changeLanguage('en')
+                        setLangOpen(false)
+                      }}
                     >
-                      🇬🇧 {t('landing.nav.english')}
+                      EN {t('landing.nav.english')}
                     </button>
                   </div>
                 )}
@@ -138,37 +157,33 @@ export function LandingNav() {
               {isAuthenticated() ? (
                 <Link
                   to="/dashboard"
-                  className="px-5 py-2.5 bg-cemac-700 hover:bg-cemac-800 text-white font-semibold text-sm rounded-xl shadow-lg transition-all"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#3DDC97] px-4 py-2.5 text-[13px] font-semibold text-[#052014] transition hover:bg-[#54e6a7]"
                 >
-                  {t('landing.nav.dashboard')} →
+                  {t('landing.nav.dashboard')}
+                  <ArrowRight className="h-4 w-4" aria-hidden />
                 </Link>
               ) : (
                 <>
                   <Link
                     to="/auth/login"
-                    className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all border ${
-                      scrolled
-                        ? 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                        : 'border-white/40 bg-black/20 text-white hover:bg-white/10'
-                    }`}
+                    className="rounded-lg border border-white/20 px-4 py-2 text-[13px] font-semibold text-white transition hover:border-white/40 hover:bg-white/5"
                   >
-                    {t('landing.nav.login')}
+                    {isFr ? 'Se connecter' : 'Sign in'}
                   </Link>
                   <Link
                     to="/auth/register"
-                    className="px-5 py-2.5 bg-cemac-600 hover:bg-cemac-700 text-white font-semibold text-sm rounded-xl shadow-lg transition-all"
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#3DDC97] px-4 py-2.5 text-[13px] font-semibold text-[#052014] transition hover:bg-[#54e6a7]"
                   >
-                    {t('landing.nav.get_started')}
+                    {isFr ? 'Rejoindre la plateforme' : 'Join the platform'}
+                    <ArrowRight className="h-4 w-4" aria-hidden />
                   </Link>
                 </>
               )}
             </div>
 
-            {/* Mobile menu button */}
             <button
-              className={`lg:hidden p-2 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-500 ${
-                scrolled ? 'text-gray-700 hover:bg-gray-100' : 'text-white hover:bg-white/10'
-              }`}
+              type="button"
+              className="rounded-lg p-2 text-white transition hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3DDC97] lg:hidden"
               onClick={() => setMenuOpen(!menuOpen)}
               aria-label={menuOpen ? t('landing.nav.close_menu') : t('landing.nav.open_menu')}
               aria-expanded={menuOpen}
@@ -179,58 +194,56 @@ export function LandingNav() {
         </div>
       </nav>
 
-      {/* Mobile menu overlay */}
       {menuOpen && (
         <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label={t('landing.nav.open_menu')}>
-          <button type="button" className="absolute inset-0 w-full bg-black/60" onClick={() => setMenuOpen(false)} aria-label={t('landing.nav.close_menu')} />
-          <div className="absolute top-0 left-0 right-0 bg-white shadow-2xl rounded-b-3xl p-6 pt-20">
-            <div className="flex flex-col gap-1 mb-6">
+          <button
+            type="button"
+            className="absolute inset-0 w-full bg-black/70 backdrop-blur-sm"
+            onClick={() => setMenuOpen(false)}
+            aria-label={t('landing.nav.close_menu')}
+          />
+          <div className="absolute left-0 right-0 top-[104px] rounded-b-3xl border-b border-white/10 bg-[#0a1611] p-6 shadow-2xl">
+            <div className="mb-6 flex flex-col gap-1">
               {navLinks.map((link) => (
                 <button
                   key={link.href}
+                  type="button"
                   onClick={() => handleAnchor(link.href)}
-                  className="px-4 py-3 text-left text-gray-700 font-medium rounded-xl hover:bg-cemac-50 hover:text-cemac-700 transition-colors"
+                  className="rounded-xl px-4 py-3 text-left font-medium text-white/80 transition hover:bg-white/5 hover:text-white"
                 >
                   {link.label}
                 </button>
               ))}
             </div>
-            <div className="flex flex-col gap-3 border-t border-gray-100 pt-4">
+            <div className="flex flex-col gap-3 border-t border-white/10 pt-4">
               {isAuthenticated() ? (
-                <Link
-                  to="/dashboard"
-                  className="py-3 bg-cemac-700 text-white font-semibold text-center rounded-xl"
-                >
+                <Link to="/dashboard" className="rounded-xl bg-[#3DDC97] py-3 text-center font-semibold text-[#052014]">
                   {t('landing.nav.dashboard')} →
                 </Link>
               ) : (
                 <>
-                  <Link
-                    to="/auth/login"
-                    className="py-3 border border-cemac-200 text-cemac-700 font-semibold text-center rounded-xl"
-                  >
-                    {t('landing.nav.login')}
+                  <Link to="/auth/login" className="rounded-xl border border-white/20 py-3 text-center font-semibold text-white">
+                    {isFr ? 'Se connecter' : 'Sign in'}
                   </Link>
-                  <Link
-                    to="/auth/register"
-                    className="py-3 bg-gradient-to-r from-gold-500 to-gold-600 text-white font-semibold text-center rounded-xl shadow"
-                  >
-                    {t('landing.nav.get_started')}
+                  <Link to="/auth/register" className="rounded-xl bg-[#3DDC97] py-3 text-center font-semibold text-[#052014]">
+                    {isFr ? 'Rejoindre la plateforme' : 'Join the platform'}
                   </Link>
                 </>
               )}
-              <div className="flex gap-2 mt-2">
+              <div className="mt-2 flex gap-2">
                 <button
-                  className="flex-1 py-2 text-sm border border-gray-200 rounded-lg text-gray-600"
+                  type="button"
+                  className="flex-1 rounded-xl border border-white/15 py-2 text-sm text-white/80"
                   onClick={() => i18n.changeLanguage('fr')}
                 >
-                  🇫🇷 {t('landing.nav.french')}
+                  FR {t('landing.nav.french')}
                 </button>
                 <button
-                  className="flex-1 py-2 text-sm border border-gray-200 rounded-lg text-gray-600"
+                  type="button"
+                  className="flex-1 rounded-xl border border-white/15 py-2 text-sm text-white/80"
                   onClick={() => i18n.changeLanguage('en')}
                 >
-                  🇬🇧 {t('landing.nav.english')}
+                  EN {t('landing.nav.english')}
                 </button>
               </div>
             </div>
@@ -240,5 +253,3 @@ export function LandingNav() {
     </>
   )
 }
-
-

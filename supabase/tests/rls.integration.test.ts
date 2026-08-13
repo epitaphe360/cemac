@@ -262,6 +262,26 @@ describe('RLS / RPC integration (local ephemeral Supabase)', () => {
     await service.from('team_members').delete().eq('id', draft!.id)
   })
 
+  it('anon can read published marketplace products with nested certifications', async () => {
+    const { data, error } = await anon
+      .from('produits')
+      .select(`
+        id,
+        nom,
+        is_published,
+        entreprise:entreprises (
+          id,
+          is_verified,
+          certifications ( id, statut, type_certification )
+        )
+      `)
+      .eq('is_published', true)
+      .limit(5)
+
+    expect(error).toBeNull()
+    expect(Array.isArray(data)).toBe(true)
+  })
+
   it('expeditions table exists and has RLS enabled', async () => {
     const { error } = await service.from('expeditions').select('id').limit(1)
     expect(error).toBeNull()

@@ -71,9 +71,8 @@ export function MarketplacePage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* En-tête */}
-      <div className="relative overflow-hidden rounded-[30px] bg-[linear-gradient(135deg,#0f3c38_0%,#125c59_46%,#d4a62f_130%)] px-6 py-7 text-white shadow-[0_20px_60px_rgba(15,60,56,0.22)] sm:px-8">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_24%)]" />
-        <div className="relative flex items-start justify-between flex-wrap gap-4">
+      <div className="page-hero">
+        <div className="relative flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="hero-chip mb-4 border-white/15 bg-white/10 text-white">{t('marketplace.private.badge')}</div>
           <h1 className="text-3xl font-black tracking-tight text-white">Marketplace</h1>

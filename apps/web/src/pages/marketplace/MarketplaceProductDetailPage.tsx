@@ -93,8 +93,7 @@ export function MarketplaceProductDetailPage() {
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl">
       {/* Breadcrumb */}
-      <div className="relative overflow-hidden rounded-[30px] bg-[linear-gradient(135deg,#0f3c38_0%,#115e59_52%,#d4a62f_135%)] px-6 py-7 text-white shadow-[0_20px_60px_rgba(15,60,56,0.22)] sm:px-8">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_24%)]" />
+      <div className="page-hero">
         <div className="relative flex flex-wrap items-center gap-3 text-sm text-white/75">
         <Button variant="ghost" size="icon" className="h-9 w-9 bg-white/10 text-white hover:bg-white/15 hover:text-white" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />

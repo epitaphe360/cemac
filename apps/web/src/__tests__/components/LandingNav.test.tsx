@@ -1,23 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { LandingNav } from '@/components/landing/LandingNav'
 
-// ── Mocks ──────────────────────────────────────────────────────────────────
-// vi.hoisted ensures the fn reference is available when mock factories run
 const mockIsAuthenticated = vi.hoisted(() => vi.fn().mockReturnValue(false))
 
 vi.mock('@/stores/auth.store', () => ({
-  // useAuthStore is called WITHOUT a selector in LandingNav:
-  //   const { isAuthenticated } = useAuthStore()
-  useAuthStore: (selector?: (state: any) => any) => {
+  useAuthStore: (selector?: (state: { isAuthenticated: typeof mockIsAuthenticated }) => unknown) => {
     const state = { isAuthenticated: mockIsAuthenticated }
     return selector ? selector(state) : state
   },
 }))
 
-// ── Helpers ────────────────────────────────────────────────────────────────
 const renderNav = () =>
   render(
     <MemoryRouter initialEntries={['/']}>
@@ -25,52 +20,51 @@ const renderNav = () =>
     </MemoryRouter>,
   )
 
-// ── Tests ──────────────────────────────────────────────────────────────────
 describe('LandingNav — brand', () => {
   beforeEach(() => mockIsAuthenticated.mockReturnValue(false))
 
   it('renders the CEMAC INTEGRA brand text', () => {
     renderNav()
-    expect(screen.getByText('CEMAC')).toBeInTheDocument()
-    expect(screen.getByText(/INTEGRA/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/CEMAC/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/INTEGRA/i).length).toBeGreaterThan(0)
   })
 })
 
 describe('LandingNav — navigation links', () => {
   beforeEach(() => mockIsAuthenticated.mockReturnValue(false))
 
-  it('renders Marketplace link', () => {
+  it('renders Accueil link', () => {
     renderNav()
-    expect(screen.getByText(/Marketplace/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Accueil|Home/i).length).toBeGreaterThan(0)
   })
 
-  it('renders Contact link', () => {
+  it('renders Pays link', () => {
     renderNav()
-    expect(screen.getByText(/Contact/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Pays|Countries/i).length).toBeGreaterThan(0)
   })
 
-  it('renders Tarifs link', () => {
+  it('renders Technologie link', () => {
     renderNav()
-    expect(screen.getByText(/Tarifs/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Technologie|Technology/i).length).toBeGreaterThan(0)
   })
 
   it('renders À propos link', () => {
     renderNav()
-    expect(screen.getByText(/propos/i)).toBeInTheDocument()
+    expect(screen.getByText(/propos|About/i)).toBeInTheDocument()
   })
 })
 
 describe('LandingNav — unauthenticated state', () => {
   beforeEach(() => mockIsAuthenticated.mockReturnValue(false))
 
-  it('shows "Connexion" button when not logged in', () => {
+  it('shows sign-in button when not logged in', () => {
     renderNav()
-    expect(screen.getByText(/Connexion/)).toBeInTheDocument()
+    expect(screen.getByText(/Se connecter|Sign in/i)).toBeInTheDocument()
   })
 
-  it('shows "Commencer gratuitement" CTA when not logged in', () => {
+  it('shows join platform CTA when not logged in', () => {
     renderNav()
-    expect(screen.getByText(/Commencer gratuitement/i)).toBeInTheDocument()
+    expect(screen.getByText(/Rejoindre la plateforme|Join the platform/i)).toBeInTheDocument()
   })
 })
 
@@ -78,14 +72,14 @@ describe('LandingNav — authenticated state', () => {
   beforeEach(() => mockIsAuthenticated.mockReturnValue(true))
   afterEach(() => mockIsAuthenticated.mockReturnValue(false))
 
-  it('shows "Tableau de bord" link when logged in', () => {
+  it('shows dashboard link when logged in', () => {
     renderNav()
-    expect(screen.getByText(/Tableau de bord/i)).toBeInTheDocument()
+    expect(screen.getByText(/Tableau de bord|Dashboard/i)).toBeInTheDocument()
   })
 
-  it('hides "Connexion" button when logged in', () => {
+  it('hides sign-in button when logged in', () => {
     renderNav()
-    expect(screen.queryByText(/^Connexion$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Se connecter|Sign in/i)).not.toBeInTheDocument()
   })
 })
 

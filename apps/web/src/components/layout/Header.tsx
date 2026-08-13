@@ -84,7 +84,7 @@ export function Header({ isMenuOpen, onMenuClick }: Readonly<HeaderProps>) {
 
   return (
     <header className="sticky top-0 z-20 h-20 shrink-0 px-3 pt-3 sm:px-5 lg:px-6">
-      <div className="flex h-full items-center justify-between rounded-[24px] border border-white/80 bg-white/80 px-4 shadow-[0_10px_30px_rgba(8,40,35,0.08)] backdrop-blur-xl lg:px-6">
+      <div className="flex h-full items-center justify-between rounded-[24px] border border-white/80 bg-white/85 px-4 shadow-subtle backdrop-blur-xl lg:px-6">
         <button
           type="button"
           onClick={onMenuClick}

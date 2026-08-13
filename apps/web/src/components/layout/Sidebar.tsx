@@ -115,8 +115,8 @@ export function Sidebar({ isOpen, onClose }: Readonly<SidebarProps>) {
               <LogoMark size={40} className="drop-shadow-sm" />
             </div>
             <div>
-              <span className="block text-sm font-black uppercase tracking-[0.18em] text-white/70">CEMAC</span>
-              <span className="block text-lg font-black text-white">INTEGRA</span>
+              <span className="brand-mark block text-[10px]">CEMAC</span>
+              <span className="block text-lg font-black tracking-tight text-white">INTEGRA</span>
             </div>
           </div>
           <button
@@ -151,9 +151,9 @@ export function Sidebar({ isOpen, onClose }: Readonly<SidebarProps>) {
               to={to}
               onClick={onClose}
               className={({ isActive }) => cn(
-                'flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-400 focus-visible:ring-inset',
+                'relative flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-400 focus-visible:ring-inset',
                 isActive
-                  ? 'bg-gradient-to-r from-cemac-500/25 to-white/5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                  ? 'bg-gradient-to-r from-cemac-500/30 to-white/5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] before:absolute before:left-0 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-gold-400'
                   : 'text-white/65 hover:bg-white/5 hover:text-white'
               )}
             >
@@ -185,9 +185,9 @@ export function Sidebar({ isOpen, onClose }: Readonly<SidebarProps>) {
               to="/products"
               onClick={onClose}
               className={({ isActive }) => cn(
-                'flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-400 focus-visible:ring-inset',
+                'relative flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cemac-400 focus-visible:ring-inset',
                 isActive
-                  ? 'bg-gradient-to-r from-cemac-500/25 to-white/5 text-white font-semibold'
+                  ? 'bg-gradient-to-r from-cemac-500/30 to-white/5 text-white font-semibold before:absolute before:left-0 before:top-1/2 before:h-6 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-gold-400'
                   : 'text-white/65 hover:bg-white/5 hover:text-white'
               )}
             >

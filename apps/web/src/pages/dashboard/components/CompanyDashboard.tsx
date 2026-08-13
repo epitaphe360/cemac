@@ -69,21 +69,20 @@ export function CompanyDashboard() {
 
   const statCards = [
     { label: t('dashboard.stats.certifications'), value: stats.totalCertifications, icon: Award, color: 'text-cemac-700', bg: 'bg-cemac-50' },
-    { label: t('dashboard.stats.approved'),        value: stats.approved,            icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
-    { label: t('dashboard.stats.pending'),         value: stats.pending,             icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-    { label: t('dashboard.stats.products'),        value: stats.products,            icon: ShoppingBag, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: t('dashboard.stats.approved'),        value: stats.approved,            icon: CheckCircle, color: 'text-cemac-600', bg: 'bg-cemac-50' },
+    { label: t('dashboard.stats.pending'),         value: stats.pending,             icon: Clock, color: 'text-gold-700', bg: 'bg-gold-50' },
+    { label: t('dashboard.stats.products'),        value: stats.products,            icon: ShoppingBag, color: 'text-cemac-800', bg: 'bg-cemac-100' },
   ]
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* En-tête */}
-      <div className="relative overflow-hidden rounded-[30px] bg-[linear-gradient(135deg,#0f3c38_0%,#115e59_50%,#d4a62f_130%)] px-6 py-7 text-white shadow-[0_20px_60px_rgba(15,60,56,0.24)] sm:px-8">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_22%),radial-gradient(circle_at_bottom_left,rgba(255,212,92,0.16),transparent_20%)]" />
-        <div className="relative flex items-start justify-between flex-wrap gap-4">
+      <div className="page-hero">
+        <div className="relative flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="hero-chip mb-4 border-white/15 bg-white/10 text-white">{t('dashboard.company.badge')}</div>
           <h1 className="text-3xl font-black tracking-tight text-white">
-            {t('dashboard.welcome')}, {profile?.full_name?.split(' ')[0]} 👋
+            {t('dashboard.welcome')}, {profile?.full_name?.split(' ')[0]}
           </h1>
           {entreprise && (
             <p className="mt-2 max-w-2xl text-sm text-white/75">{entreprise.raison_sociale} · {entreprise.pays} · {t('dashboard.company.summary')}</p>
@@ -206,13 +205,13 @@ export function CompanyDashboard() {
               </Link>
               <Link to="/marketplace">
                 <Button variant="outline" className="w-full justify-start gap-3">
-                  <ShoppingBag className="h-4 w-4 text-blue-600" />
+                  <ShoppingBag className="h-4 w-4 text-cemac-600" />
                   {t('dashboard.company.publish_product')}
                 </Button>
               </Link>
               <Link to="/market-intelligence">
                 <Button variant="outline" className="w-full justify-start gap-3">
-                  <TrendingUp className="h-4 w-4 text-purple-600" />
+                  <TrendingUp className="h-4 w-4 text-gold-600" />
                   {t('dashboard.company.market_analysis')}
                 </Button>
               </Link>
