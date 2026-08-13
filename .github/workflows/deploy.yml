@@ -248,7 +248,7 @@ jobs:
     steps:
       - name: Notify Slack on success
         if: needs.smoke-test.result == 'success'
-        uses: slackapi/slack-github-action@v2.0.0
+        uses: slackapi/slack-github-action@v4.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
@@ -268,7 +268,7 @@ jobs:
 
       - name: Notify Slack on failure
         if: needs.smoke-test.result != 'success'
-        uses: slackapi/slack-github-action@v2.0.0
+        uses: slackapi/slack-github-action@v4.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
